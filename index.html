@@ -1,15 +1,18 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Voodoo's Attic Facebook Poster</title>
+    <meta charset="UTF-8">
+    <title>Voodoo's Attic Master Poster</title>
     <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
     <link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png">
     <link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png">
     <link rel="manifest" href="site.webmanifest">
+    
     <style>
         :root {
             --bg: #1a0033; --card: #2a0a4a; --line: #3a2358; --ink: #f7f7f7;
             --muted: #c59fd6; --accent: #22c55e; --brand: #ffd94a; --pink: #ff7ab6;
+            --insta: linear-gradient(45deg, #f9ce34, #ee2a7b, #6228d7);
             --input-bg: #0e1520;
         }
         body { background: var(--bg); color: var(--ink); font-family: 'Segoe UI', sans-serif; padding: 20px; margin: 0; overflow-x: hidden; }
@@ -28,9 +31,10 @@
         .chip-container { display: flex; gap: 5px; margin-bottom: 15px; flex-wrap: wrap; }
         .chip { background: var(--line); color: var(--muted); padding: 6px 12px; border-radius: 20px; font-size: 12px; cursor: pointer; border: 1px solid transparent; }
         .chip.active { background: var(--brand); color: var(--bg); font-weight: bold; }
-        .audio-btn { background: #3b82f6; color: white; padding: 15px; border-radius: 8px; font-weight: 800; cursor: pointer; display: block; text-align: center; margin-bottom: 10px; font-size: 14px; border: 2px solid rgba(255,255,255,0.1); }
+        .audio-btn { background: #3b82f6; color: white; padding: 12px; border-radius: 8px; font-weight: 800; cursor: pointer; display: block; text-align: center; margin-bottom: 10px; font-size: 14px; }
         .pink-btn { background: var(--pink); color: #1a0033; padding: 12px; border: none; border-radius: 8px; cursor: pointer; width: 100%; margin-bottom: 15px; font-weight: 900; text-transform: uppercase; font-size: 14px; }
-        .rec-btn { background: var(--accent); color: #fff; width: 100%; padding: 20px; border: none; border-radius: 8px; font-weight: 800; cursor: pointer; font-size: 18px; }
+        .rec-btn { background: var(--accent); color: #fff; width: 100%; padding: 20px; border: none; border-radius: 8px; font-weight: 800; cursor: pointer; font-size: 16px; margin-bottom: 8px; }
+        .insta-btn { background: var(--insta); color: #fff; width: 100%; padding: 20px; border: none; border-radius: 8px; font-weight: 800; cursor: pointer; font-size: 16px; text-shadow: 1px 1px 2px rgba(0,0,0,0.5); }
         canvas { display: none; }
     </style>
 </head>
@@ -38,13 +42,11 @@
 
 <div class="interface">
     <div class="controls">
-        <h2 style="color: var(--brand); margin-top:0; text-align:center;">Voodoo's Attic Facebook Poster</h2>
+        <h2 style="color: var(--brand); margin-top:0; text-align:center;">Voodoo's Attic Master Poster</h2>
         
-        <label>1. TITLES</label>
-        <input type="text" id="vidTitle" placeholder="POST TITLE">
+        <input type="text" id="vidTitle" placeholder="MAIN TITLE">
         <input type="text" id="vidSub" placeholder="SUBTITLE">
 
-        <label>2. TRANSITION TYPE</label>
         <div class="chip-container">
             <div class="chip active" onclick="setTrans('melt')">MELT</div>
             <div class="chip" onclick="setTrans('swipe')">SWIPE</div>
@@ -52,29 +54,30 @@
             <div class="chip" onclick="setTrans('swap')">SWAP</div>
         </div>
 
-        <label>3. ALIGN IMAGES (MAX 6)</label>
-        <button onclick="clearAlignment()" class="pink-btn" style="margin-top:5px;">✔️ LOCK ALIGNMENT</button>
+        <button onclick="previewInsta()" class="pink-btn" style="background: #a855f7; color: white;">👁️ PREVIEW INSTA VIEW</button>
+        <button onclick="clearAlignment()" class="pink-btn">✔️ LOCK ALIGNMENT</button>
+        
         <div id="image-inputs"></div>
+        <textarea id="mainScript" style="height:120px;" placeholder="Post Text..."></textarea>
 
-        <label>4. SCRIPT</label>
-        <textarea id="mainScript" style="height:150px;" placeholder="Paste text here..."></textarea>
-
-        <label>5. FINAL STEPS</label>
         <label class="audio-btn">🎵 UPLOAD TRACK (MP4/MP3) <input type="file" id="audioInput" accept="audio/*,video/mp4" style="display:none" onchange="loadAudio(event)"></label>
-        <div id="audioStatus" style="font-size:11px; color:var(--muted); margin-bottom:15px; text-align:center;">No track selected.</div>
+        <div id="audioStatus" style="font-size:11px; color:var(--muted); margin-bottom:15px; text-align:center;">No track loaded.</div>
 
-        <button onclick="record()" class="rec-btn">🎬 START PRODUCTION</button>
+        <button onclick="record('standard')" class="rec-btn">🎬 START STANDARD PRODUCTION</button>
+        <button onclick="record('insta')" class="insta-btn">📸 START INSTA-READY PRODUCTION</button>
+        
         <div id="status" style="margin-top:10px; color: var(--brand); font-weight: bold; text-align:center;">System Standby.</div>
+        <a id="dlLink" href="#" style="display:none">Download</a>
     </div>
-
-    <div class="viewer-box">
+    
+    <div class="viewer-box" id="viewerContainer">
         <div class="thumb-strip" id="thumbStrip"></div>
         <div id="paint-area"><div id="stage"></div></div>
         <div id="text-area"></div>
     </div>
 </div>
 
-<canvas id="c" width="1400" height="950"></canvas>
+<canvas id="c"></canvas>
 
 <script>
     const MAX_IMAGES = 6;
@@ -92,19 +95,19 @@
             try {
                 audioBuffer = await audioCtx.decodeAudioData(ev.target.result);
                 document.getElementById('audioStatus').innerText = "TRACK READY: " + file.name;
-                document.getElementById('audioStatus').style.color = "var(--accent)";
             } catch (err) { alert("Audio Format Error."); }
         };
         reader.readAsArrayBuffer(file);
     }
 
     const inputContainer = document.getElementById('image-inputs');
+    const thumbStrip = document.getElementById('thumbStrip');
     for(let i=0; i < MAX_IMAGES; i++) {
         const div = document.createElement('div'); div.className = `img-slot`; div.id = `slot-${i}`;
         div.innerHTML = `<div style="display:flex; justify-content:space-between"><strong>SLOT ${i+1}</strong><input type="radio" name="focus" onclick="setAlign(${i})"></div><input type="file" onchange="loadImg(event, ${i})" style="width:100%; font-size:10px; margin-top:5px;">`;
         inputContainer.appendChild(div);
         const thumb = document.createElement('div'); thumb.className = 'thumb-box'; thumb.id = `thumb-${i}`;
-        document.getElementById('thumbStrip').appendChild(thumb);
+        thumbStrip.appendChild(thumb);
     }
 
     function loadImg(e, idx) { 
@@ -112,8 +115,19 @@
         img.onload = () => { imageData[idx].src = img.src; imageData[idx].imgObj = img; document.getElementById(`thumb-${idx}`).innerHTML = `<img src="${img.src}">`; updateStage(); }; 
     }
 
-    function setAlign(idx) { alignIndex = idx; document.querySelectorAll('.img-slot').forEach(s => s.classList.remove('active')); document.getElementById(`slot-${idx}`).classList.add('active'); document.querySelectorAll('.thumb-box').forEach((b, i) => b.classList.toggle('active', i === idx)); updateStage(); }
-    function clearAlignment() { alignIndex = -1; document.querySelectorAll('.img-slot').forEach(s => s.classList.remove('active')); updateStage(); }
+    function setAlign(idx) { 
+        alignIndex = idx; 
+        document.querySelectorAll('.img-slot').forEach(s => s.classList.remove('active')); 
+        document.getElementById(`slot-${idx}`).classList.add('active'); 
+        document.querySelectorAll('.thumb-box').forEach((b, i) => b.classList.toggle('active', i === idx)); 
+        updateStage(); 
+    }
+
+    function clearAlignment() { 
+        alignIndex = -1; 
+        document.querySelectorAll('.img-slot').forEach(s => s.classList.remove('active')); 
+        updateStage(); 
+    }
 
     window.onkeydown = e => {
         if(alignIndex < 0) return;
@@ -134,28 +148,56 @@
         }
     }
 
-    async function record() {
-        const activeImages = imageData.filter(d => d.src !== null);
-        if(activeImages.length < 2) return alert("Upload images first.");
-        if(!audioBuffer) return alert("Upload audio first.");
+    function previewInsta() {
+        if (alignIndex < 0 || !imageData[alignIndex].src) return alert("Select an image first.");
+        const stage = document.getElementById('stage');
+        stage.innerHTML = ''; stage.style.width = "1080px"; stage.style.height = "1080px"; stage.style.display = "flex";
+        
+        const imgDiv = document.createElement('div');
+        imgDiv.style.width = "720px"; imgDiv.style.height = "1080px"; imgDiv.style.overflow = "hidden"; imgDiv.style.position = "relative"; imgDiv.style.background = "#000";
+        const img = new Image(); img.src = imageData[alignIndex].src;
+        img.style.width = "720px"; img.style.position = "absolute";
+        img.style.transform = `translate(${imageData[alignIndex].x}px, ${imageData[alignIndex].y}px) scale(${imageData[alignIndex].s})`;
+        imgDiv.appendChild(img);
 
-        const canvas = document.getElementById('c'), ctx = canvas.getContext('2d'), stream = canvas.captureStream(30);
+        const txtDiv = document.createElement('div');
+        txtDiv.style.width = "360px"; txtDiv.style.height = "1080px"; txtDiv.style.background = "var(--bg)"; txtDiv.style.padding = "20px";
+        txtDiv.style.color = "var(--brand)"; txtDiv.style.fontSize = "18px"; txtDiv.style.borderLeft = "1px solid var(--line)";
+        txtDiv.innerText = document.getElementById('mainScript').value;
+
+        stage.appendChild(imgDiv); stage.appendChild(txtDiv);
+    }
+
+    async function record(mode) {
+        const isInsta = (mode === 'insta');
+        const activeImages = imageData.filter(d => d.src !== null);
+        if(activeImages.length < 2) return alert("Upload at least 2 images.");
+        if(!audioBuffer) return alert("Upload audio track first.");
+
+        const canvas = document.getElementById('c'), ctx = canvas.getContext('2d');
+        canvas.width = isInsta ? 1080 : 1400;
+        canvas.height = isInsta ? 1080 : 950;
+        
+        const stream = canvas.captureStream(30);
         if (audioCtx.state === 'suspended') await audioCtx.resume();
         const dest = audioCtx.createMediaStreamDestination();
         const source = audioCtx.createBufferSource();
         source.buffer = audioBuffer; source.connect(dest); source.connect(audioCtx.destination);
         stream.addTrack(dest.stream.getAudioTracks()[0]); source.start(0);
 
-        const totalTransTime = 45000, restingTime = 30000, totalDuration = totalTransTime + restingTime;
+        const totalTransTime = isInsta ? 60000 : 45000;
+        const restingTime = isInsta ? 20000 : 30000;
+        const totalDuration = totalTransTime + restingTime;
+
         const rec = new MediaRecorder(stream, { mimeType: 'video/webm' });
         const chunks = [];
         rec.ondataavailable = e => chunks.push(e.data);
         rec.onstop = () => {
-            const blob = new Blob(chunks, { type: 'video/mp4' });
-            const link = document.createElement('a');
-            link.href = URL.createObjectURL(blob);
-            link.download = (document.getElementById('vidTitle').value || 'Voodoo_Post') + '.mp4';
-            link.click();
+            source.stop();
+            const dl = document.getElementById('dlLink');
+            dl.href = URL.createObjectURL(new Blob(chunks, { type: 'video/mp4' }));
+            dl.download = isInsta ? 'voodoos_insta_final.mp4' : 'voodoos_attic_final.mp4';
+            dl.click();
             document.getElementById('status').innerText = "DONE!";
         };
 
@@ -166,36 +208,64 @@
         function render(t) {
             if(!startTime) startTime = t;
             let elap = t - startTime, tProg = Math.min(elap / totalTransTime, 1), gProg = Math.min(elap / totalDuration, 1);
-            ctx.fillStyle = "#1a0033"; ctx.fillRect(0, 0, 1400, 950);
-            ctx.fillStyle = "#2a0a4a"; ctx.fillRect(0, 0, 700, 150);
+            
+            ctx.fillStyle = "#1a0033"; ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            const imgAreaW = isInsta ? 720 : 700;
+            const textStartX = isInsta ? 720 : 700;
+            const textFrameW = isInsta ? 360 : 700;
+
+            // Thumbnail Strip (Standard Only)
+            if(!isInsta) {
+                ctx.fillStyle = "#2a0a4a"; ctx.fillRect(0, 0, 700, 150);
+                activeImages.forEach((img, i) => {
+                    let ty = 150 + (i * 85); ctx.strokeStyle = "#3a2358"; ctx.strokeRect(15, ty, 70, 70); ctx.drawImage(img.imgObj, 15, ty, 70, 70);
+                });
+            }
+
+            // Image Frame
+            ctx.save(); 
+            ctx.beginPath(); ctx.rect(isInsta ? 0 : 100, isInsta ? 0 : 150, imgAreaW, isInsta ? 1080 : 800); ctx.clip();
             let sW = 1 / (activeImages.length - 1), cIdx = Math.min(Math.floor(tProg / sW), activeImages.length - 2);
-            activeImages.forEach((img, i) => {
-                let ty = 150 + (i * 85); ctx.strokeStyle = (i === cIdx || (i === cIdx+1 && elap < totalTransTime)) ? "#ffd94a" : "#3a2358"; ctx.lineWidth = (i === cIdx) ? 4 : 1;
-                ctx.strokeRect(15, ty, 70, 70); ctx.drawImage(img.imgObj, 15, ty, 70, 70);
-            });
-            ctx.textAlign = "center"; ctx.fillStyle = "#ffd94a"; ctx.font = "bold 36px Segoe UI"; ctx.fillText(titleVal, 350, 70);
-            ctx.fillStyle = "#ff7ab6"; ctx.font = "bold 20px Segoe UI"; ctx.fillText(subVal, 350, 110);
-            ctx.save(); ctx.beginPath(); ctx.rect(100, 150, 600, 800); ctx.clip();
             let sP = (tProg - (cIdx * sW)) / sW; const iA = activeImages[cIdx], iB = activeImages[cIdx+1];
+
             if (elap < totalTransTime) {
                 [iA, iB].forEach((img, i) => {
                     ctx.save();
-                    if(transMode === 'swipe') { let xOff = (i === 0) ? -sP * 600 : 600 - (sP * 600); ctx.translate(img.x + 100 + xOff, img.y + 150); }
-                    else if (transMode === 'dissolve') { ctx.globalAlpha = (i === 0) ? 1 - sP : sP; ctx.translate(img.x + 100, img.y + 150); }
-                    else if (transMode === 'swap') { ctx.globalAlpha = (sP < 0.5 && i === 0) || (sP >= 0.5 && i === 1) ? 1 : 0; ctx.translate(img.x + 100, img.y + 150); }
-                    else { ctx.globalAlpha = (i === 0) ? 1 : sP; ctx.translate(img.x + 100, img.y + 150); }
-                    ctx.scale(img.s, img.s); ctx.drawImage(img.imgObj, 0, 0, 600, 600 * (img.imgObj.naturalHeight / img.imgObj.naturalWidth)); ctx.restore();
+                    let xBase = (isInsta ? 0 : 100) + img.x;
+                    let yBase = (isInsta ? 0 : 150) + img.y;
+                    if(transMode === 'swipe') { let xOff = (i === 0) ? -sP * imgAreaW : imgAreaW - (sP * imgAreaW); ctx.translate(xBase + xOff, yBase); }
+                    else if (transMode === 'dissolve') { ctx.globalAlpha = (i === 0) ? 1 - sP : sP; ctx.translate(xBase, yBase); }
+                    else if (transMode === 'swap') { ctx.globalAlpha = (sP < 0.5 && i === 0) || (sP >= 0.5 && i === 1) ? 1 : 0; ctx.translate(xBase, yBase); }
+                    else { ctx.globalAlpha = (i === 0) ? 1 : sP; ctx.translate(xBase, yBase); }
+                    ctx.scale(img.s, img.s); ctx.drawImage(img.imgObj, 0, 0, imgAreaW, imgAreaW * (img.imgObj.naturalHeight / img.imgObj.naturalWidth)); ctx.restore();
                 });
             } else {
-                const f = activeImages[activeImages.length - 1]; ctx.translate(f.x + 100, f.y + 150); ctx.scale(f.s, f.s); ctx.drawImage(f.imgObj, 0, 0, 600, 600 * (f.imgObj.naturalHeight / f.imgObj.naturalWidth));
+                const finalImg = activeImages[activeImages.length - 1];
+                ctx.translate((isInsta ? 0 : 100) + finalImg.x, (isInsta ? 0 : 150) + finalImg.y); 
+                ctx.scale(finalImg.s, finalImg.s);
+                ctx.drawImage(finalImg.imgObj, 0, 0, imgAreaW, imgAreaW * (finalImg.imgObj.naturalHeight / finalImg.imgObj.naturalWidth));
             }
             ctx.restore();
-            ctx.fillStyle = "#1a0033"; ctx.fillRect(700, 0, 700, 950); 
+
+            // Text Frame
+            ctx.fillStyle = "#1a0033"; ctx.fillRect(textStartX, 0, textFrameW, canvas.height);
             ctx.fillStyle = "#ffd94a"; ctx.textAlign = "left";
-            let lns = []; scriptVal.split('\n').forEach(p => { let wrds = p.split(' '), cur = ''; wrds.forEach(w => { if((cur+w).length > 45){ lns.push(cur); cur=w+' '; } else cur+=w+' '; }); lns.push(cur); });
+            
+            let lns = []; scriptVal.split('\n').forEach(p => { 
+                let maxChars = isInsta ? 25 : 45;
+                let wrds = p.split(' '), cur = ''; wrds.forEach(w => { if((cur+w).length > maxChars){ lns.push(cur); cur=w+' '; } else cur+=w+' '; }); lns.push(cur); 
+            });
+
             if (elap < totalTransTime) { 
-                ctx.font = "24px Segoe UI"; let th = lns.length * 48, sy = 950, cy = sy - (tProg * (sy - 50 + th + 100)); lns.forEach((l, i) => ctx.fillText(l, 730, cy + (i * 48))); 
-            } else { let fS = Math.min(30, Math.floor(850 / (lns.length * 1.6))); ctx.font = `${fS}px Segoe UI`; let sY = 100 + ((850 - (lns.length * fS * 1.6)) / 2); lns.forEach((l, i) => ctx.fillText(l, 730, sY + (i * fS * 1.6))); }
+                ctx.font = isInsta ? "bold 22px Segoe UI" : "24px Segoe UI"; 
+                let th = lns.length * 40, sy = canvas.height, cy = sy - (tProg * (sy + th)); 
+                lns.forEach((l, i) => ctx.fillText(l, textStartX + 20, cy + (i * 40))); 
+            } else { 
+                let fS = isInsta ? 18 : 30; ctx.font = `bold ${fS}px Segoe UI`; 
+                lns.forEach((l, i) => ctx.fillText(l, textStartX + 20, 50 + (i * (fS * 1.4)))); 
+            }
+
             if(gProg < 1) { requestAnimationFrame(render); document.getElementById('status').innerText = `PRODUCING: ${Math.round(gProg * 100)}%`; } 
             else { rec.stop(); }
         }
