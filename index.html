@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Voodoo's Attic Facebook Poster</title>
+    <style>
+        :root {
+            --bg: #1a0033; --card: #2a0a4a; --line: #3a2358; --ink: #f7f7f7;
+            --muted: #c59fd6; --accent: #22c55e; --brand: #ffd94a; --pink: #ff7ab6;
+            --input-bg: #0e1520;
+        }
+        body { background: var(--bg); color: var(--ink); font-family: 'Segoe UI', sans-serif; padding: 20px; margin: 0; overflow-x: hidden; }
+        .interface { display: grid; grid-template-columns: 420px 1fr; gap: 20px; width: 98%; margin: auto; }
+        .controls { background: var(--card); padding: 20px; border-radius: 16px; border: 1px solid var(--line); height: 95vh; overflow-y: auto; box-shadow: 0 10px 30px rgba(0,0,0,0.3); }
+        .thumb-strip { width: 80px; height: 800px; position: absolute; left: 10px; top: 150px; display: flex; flex-direction: column; gap: 10px; z-index: 10; }
+        .thumb-box { width: 70px; height: 70px; border: 2px solid var(--line); border-radius: 8px; overflow: hidden; background: #000; opacity: 0.6; }
+        .thumb-box.active { border-color: var(--brand); opacity: 1; transform: scale(1.05); }
+        .thumb-box img { width: 100%; height: 100%; object-fit: cover; }
+        .img-slot { background: rgba(0,0,0,0.2); border: 1px solid var(--line); padding: 10px; margin-bottom: 8px; border-radius: 8px; font-size: 12px; }
+        .img-slot.active { border-color: var(--pink); background: rgba(255, 122, 182, 0.1); }
+        .viewer-box { position: relative; width: 1400px; height: 950px; border: 2px solid var(--line); background: #000; overflow: hidden; border-radius: 16px; }
+        #paint-area { width: 700px; height: 950px; float: left; position: relative; padding-left: 100px; box-sizing: border-box; }
+        #text-area { width: 700px; height: 950px; float: left; background: var(--bg); border-left: 1px solid var(--line); position: relative; }
+        input[type="text"], textarea { width: 100%; background: var(--input-bg); color: var(--brand); border: 1px solid var(--line); border-radius: 8px; padding: 10px; margin-bottom: 10px; }
+        .chip-container { display: flex; gap: 5px; margin-bottom: 15px; flex-wrap: wrap; }
+        .chip { background: var(--line); color: var(--muted); padding: 6px 12px; border-radius: 20px; font-size: 12px; cursor: pointer; border: 1px solid transparent; }
+        .chip.active { background: var(--brand); color: var(--bg); font-weight: bold; }
+        .audio-btn { background: #3b82f6; color: white; padding: 15px; border-radius: 8px; font-weight: 800; cursor: pointer; display: block; text-align: center; margin-bottom: 10px; font-size: 14px; border: 2px solid rgba(255,255,255,0.1); }
+        .pink-btn { background: var(--pink); color: #1a0033; padding: 12px; border: none; border-radius: 8px; cursor: pointer; width: 100%; margin-bottom: 15px; font-weight: 900; text-transform: uppercase; font-size: 14px; }
+        .rec-btn { background: var(--accent); color: #fff; width: 100%; padding: 20px; border: none; border-radius: 8px; font-weight: 800; cursor: pointer; font-size: 18px; }
+        canvas { display: none; }
+    </style>
+</head>
+<body>
+
+<div class="interface">
+    <div class="controls">
+        <h2 style="color: var(--brand); margin-top:0; text-align:center;">Voodoo's Attic Facebook Poster</h2>
+        
+        <label>1. TITLES</label>
+        <input type="text" id="vidTitle" placeholder="POST TITLE">
+        <input type="text" id="vidSub" placeholder="SUBTITLE">
+
+        <label>2. TRANSITION TYPE</label>
+        <div class="chip-container">
+            <div class="chip active" onclick="setTrans('melt')">MELT</div>
+            <div class="chip" onclick="setTrans('swipe')">SWIPE</div>
+            <div class="chip" onclick="setTrans('dissolve')">DISSOLVE</div>
+            <div class="chip" onclick="setTrans('swap')">SWAP</div>
+        </div>
+
+        <label>3. ALIGN IMAGES (MAX 6)</label>
+        <button onclick="clearAlignment()" class="pink-btn" style="margin-top:5px;">✔️ LOCK ALIGNMENT</button>
+        <div id="image-inputs"></div>
+
+        <label>4. SCRIPT</label>
+        <textarea id="mainScript" style="height:150px;" placeholder="Paste text here..."></textarea>
+
+        <label>5. FINAL STEPS</label>
+        <label class="audio-btn">🎵 UPLOAD TRACK (MP4/MP3) <input type="file" id="audioInput" accept="audio/*,video/mp4" style="display:none" onchange="loadAudio(event)"></label>
+        <div id="audioStatus" style="font-size:11px; color:var(--muted); margin-bottom:15px; text-align:center;">No track selected.</div>
+
+        <button onclick="record()" class="rec-btn">🎬 START PRODUCTION</button>
+        <div id="status" style="margin-top:10px; color: var(--brand); font-weight: bold; text-align:center;">System Standby.</div>
+    </div>
+
+    <div class="viewer-box">
+        <div class="thumb-strip" id="thumbStrip"></div>
+        <div id="paint-area"><div id="stage"></div></div>
+        <div id="text-area"></div>
+    </div>
+</div>
+
+<canvas id="c" width="1400" height="950"></canvas>
+
+<script>
+    const MAX_IMAGES = 6;
+    let imageData = Array.from({length: MAX_IMAGES}, () => ({ src: null, x: 0, y: 0, s: 1, imgObj: null }));
+    let alignIndex = -1, transMode = 'melt', audioBuffer = null, audioCtx = null;
+
+    function setTrans(m) { transMode = m; document.querySelectorAll('.chip').forEach(c => c.classList.toggle('active', c.innerText.toLowerCase() === m)); }
+    
+    async function loadAudio(e) { 
+        const file = e.target.files[0];
+        if(!file) return;
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const reader = new FileReader();
+        reader.onload = async (ev) => {
+            try {
+                audioBuffer = await audioCtx.decodeAudioData(ev.target.result);
+                document.getElementById('audioStatus').innerText = "TRACK READY: " + file.name;
+                document.getElementById('audioStatus').style.color = "var(--accent)";
+            } catch (err) { alert("Audio Format Error."); }
+        };
+        reader.readAsArrayBuffer(file);
+    }
+
+    const inputContainer = document.getElementById('image-inputs');
+    for(let i=0; i < MAX_IMAGES; i++) {
+        const div = document.createElement('div'); div.className = `img-slot`; div.id = `slot-${i}`;
+        div.innerHTML = `<div style="display:flex; justify-content:space-between"><strong>SLOT ${i+1}</strong><input type="radio" name="focus" onclick="setAlign(${i})"></div><input type="file" onchange="loadImg(event, ${i})" style="width:100%; font-size:10px; margin-top:5px;">`;
+        inputContainer.appendChild(div);
+        const thumb = document.createElement('div'); thumb.className = 'thumb-box'; thumb.id = `thumb-${i}`;
+        document.getElementById('thumbStrip').appendChild(thumb);
+    }
+
+    function loadImg(e, idx) { 
+        const img = new Image(); img.src = URL.createObjectURL(e.target.files[0]); 
+        img.onload = () => { imageData[idx].src = img.src; imageData[idx].imgObj = img; document.getElementById(`thumb-${idx}`).innerHTML = `<img src="${img.src}">`; updateStage(); }; 
+    }
+
+    function setAlign(idx) { alignIndex = idx; document.querySelectorAll('.img-slot').forEach(s => s.classList.remove('active')); document.getElementById(`slot-${idx}`).classList.add('active'); document.querySelectorAll('.thumb-box').forEach((b, i) => b.classList.toggle('active', i === idx)); updateStage(); }
+    function clearAlignment() { alignIndex = -1; document.querySelectorAll('.img-slot').forEach(s => s.classList.remove('active')); updateStage(); }
+
+    window.onkeydown = e => {
+        if(alignIndex < 0) return;
+        let d = imageData[alignIndex];
+        if (e.key === "ArrowUp") d.y -= 1; if (e.key === "ArrowDown") d.y += 1;
+        if (e.key === "ArrowLeft") d.x -= 1; if (e.key === "ArrowRight") d.x += 1;
+        if (e.key === "+") d.s += 0.001; if (e.key === "-") d.s -= 0.001;
+        updateStage();
+    };
+
+    function updateStage() {
+        const stage = document.getElementById('stage'); stage.innerHTML = '';
+        if(alignIndex >= 0 && imageData[alignIndex].src) {
+            const img = new Image(); img.src = imageData[alignIndex].src;
+            img.style.width = "600px"; img.style.position = "absolute"; img.style.top = "150px"; img.style.left = "100px";
+            img.style.transform = `translate(${imageData[alignIndex].x}px, ${imageData[alignIndex].y}px) scale(${imageData[alignIndex].s})`;
+            stage.appendChild(img);
+        }
+    }
+
+    async function record() {
+        const activeImages = imageData.filter(d => d.src !== null);
+        if(activeImages.length < 2) return alert("Upload images first.");
+        if(!audioBuffer) return alert("Upload audio first.");
+
+        const canvas = document.getElementById('c'), ctx = canvas.getContext('2d'), stream = canvas.captureStream(30);
+        if (audioCtx.state === 'suspended') await audioCtx.resume();
+        const dest = audioCtx.createMediaStreamDestination();
+        const source = audioCtx.createBufferSource();
+        source.buffer = audioBuffer; source.connect(dest); source.connect(audioCtx.destination);
+        stream.addTrack(dest.stream.getAudioTracks()[0]); source.start(0);
+
+        const totalTransTime = 45000, restingTime = 30000, totalDuration = totalTransTime + restingTime;
+        const rec = new MediaRecorder(stream, { mimeType: 'video/webm' });
+        const chunks = [];
+        rec.ondataavailable = e => chunks.push(e.data);
+        rec.onstop = () => {
+            const blob = new Blob(chunks, { type: 'video/mp4' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = (document.getElementById('vidTitle').value || 'Voodoo_Post') + '.mp4';
+            link.click();
+            document.getElementById('status').innerText = "DONE!";
+        };
+
+        rec.start();
+        let startTime = null;
+        const scriptVal = document.getElementById('mainScript').value, titleVal = document.getElementById('vidTitle').value.toUpperCase(), subVal = document.getElementById('vidSub').value;
+
+        function render(t) {
+            if(!startTime) startTime = t;
+            let elap = t - startTime, tProg = Math.min(elap / totalTransTime, 1), gProg = Math.min(elap / totalDuration, 1);
+            ctx.fillStyle = "#1a0033"; ctx.fillRect(0, 0, 1400, 950);
+            ctx.fillStyle = "#2a0a4a"; ctx.fillRect(0, 0, 700, 150);
+            let sW = 1 / (activeImages.length - 1), cIdx = Math.min(Math.floor(tProg / sW), activeImages.length - 2);
+            activeImages.forEach((img, i) => {
+                let ty = 150 + (i * 85); ctx.strokeStyle = (i === cIdx || (i === cIdx+1 && elap < totalTransTime)) ? "#ffd94a" : "#3a2358"; ctx.lineWidth = (i === cIdx) ? 4 : 1;
+                ctx.strokeRect(15, ty, 70, 70); ctx.drawImage(img.imgObj, 15, ty, 70, 70);
+            });
+            ctx.textAlign = "center"; ctx.fillStyle = "#ffd94a"; ctx.font = "bold 36px Segoe UI"; ctx.fillText(titleVal, 350, 70);
+            ctx.fillStyle = "#ff7ab6"; ctx.font = "bold 20px Segoe UI"; ctx.fillText(subVal, 350, 110);
+            ctx.save(); ctx.beginPath(); ctx.rect(100, 150, 600, 800); ctx.clip();
+            let sP = (tProg - (cIdx * sW)) / sW; const iA = activeImages[cIdx], iB = activeImages[cIdx+1];
+            if (elap < totalTransTime) {
+                [iA, iB].forEach((img, i) => {
+                    ctx.save();
+                    if(transMode === 'swipe') { let xOff = (i === 0) ? -sP * 600 : 600 - (sP * 600); ctx.translate(img.x + 100 + xOff, img.y + 150); }
+                    else if (transMode === 'dissolve') { ctx.globalAlpha = (i === 0) ? 1 - sP : sP; ctx.translate(img.x + 100, img.y + 150); }
+                    else if (transMode === 'swap') { ctx.globalAlpha = (sP < 0.5 && i === 0) || (sP >= 0.5 && i === 1) ? 1 : 0; ctx.translate(img.x + 100, img.y + 150); }
+                    else { ctx.globalAlpha = (i === 0) ? 1 : sP; ctx.translate(img.x + 100, img.y + 150); }
+                    ctx.scale(img.s, img.s); ctx.drawImage(img.imgObj, 0, 0, 600, 600 * (img.imgObj.naturalHeight / img.imgObj.naturalWidth)); ctx.restore();
+                });
+            } else {
+                const f = activeImages[activeImages.length - 1]; ctx.translate(f.x + 100, f.y + 150); ctx.scale(f.s, f.s); ctx.drawImage(f.imgObj, 0, 0, 600, 600 * (f.imgObj.naturalHeight / f.imgObj.naturalWidth));
+            }
+            ctx.restore();
+            ctx.fillStyle = "#1a0033"; ctx.fillRect(700, 0, 700, 950); 
+            ctx.fillStyle = "#ffd94a"; ctx.textAlign = "left";
+            let lns = []; scriptVal.split('\n').forEach(p => { let wrds = p.split(' '), cur = ''; wrds.forEach(w => { if((cur+w).length > 45){ lns.push(cur); cur=w+' '; } else cur+=w+' '; }); lns.push(cur); });
+            if (elap < totalTransTime) { 
+                ctx.font = "24px Segoe UI"; let th = lns.length * 48, sy = 950, cy = sy - (tProg * (sy - 50 + th + 100)); lns.forEach((l, i) => ctx.fillText(l, 730, cy + (i * 48))); 
+            } else { let fS = Math.min(30, Math.floor(850 / (lns.length * 1.6))); ctx.font = `${fS}px Segoe UI`; let sY = 100 + ((850 - (lns.length * fS * 1.6)) / 2); lns.forEach((l, i) => ctx.fillText(l, 730, sY + (i * fS * 1.6))); }
+            if(gProg < 1) { requestAnimationFrame(render); document.getElementById('status').innerText = `PRODUCING: ${Math.round(gProg * 100)}%`; } 
+            else { rec.stop(); }
+        }
+        requestAnimationFrame(render);
+    }
+</script>
+</body>
+</html>
