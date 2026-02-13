@@ -54,7 +54,6 @@
             <div class="chip" onclick="setTrans('swap')">SWAP</div>
         </div>
 
-        <button onclick="previewInsta()" class="pink-btn" style="background: #a855f7; color: white;">👁️ PREVIEW INSTA VIEW</button>
         <button onclick="clearAlignment()" class="pink-btn">✔️ LOCK ALIGNMENT</button>
         
         <div id="image-inputs"></div>
@@ -101,13 +100,12 @@
     }
 
     const inputContainer = document.getElementById('image-inputs');
-    const thumbStrip = document.getElementById('thumbStrip');
     for(let i=0; i < MAX_IMAGES; i++) {
         const div = document.createElement('div'); div.className = `img-slot`; div.id = `slot-${i}`;
         div.innerHTML = `<div style="display:flex; justify-content:space-between"><strong>SLOT ${i+1}</strong><input type="radio" name="focus" onclick="setAlign(${i})"></div><input type="file" onchange="loadImg(event, ${i})" style="width:100%; font-size:10px; margin-top:5px;">`;
         inputContainer.appendChild(div);
         const thumb = document.createElement('div'); thumb.className = 'thumb-box'; thumb.id = `thumb-${i}`;
-        thumbStrip.appendChild(thumb);
+        document.getElementById('thumbStrip').appendChild(thumb);
     }
 
     function loadImg(e, idx) { 
@@ -148,26 +146,6 @@
         }
     }
 
-    function previewInsta() {
-        if (alignIndex < 0 || !imageData[alignIndex].src) return alert("Select an image first.");
-        const stage = document.getElementById('stage');
-        stage.innerHTML = ''; stage.style.width = "1080px"; stage.style.height = "1080px"; stage.style.display = "flex";
-        
-        const imgDiv = document.createElement('div');
-        imgDiv.style.width = "720px"; imgDiv.style.height = "1080px"; imgDiv.style.overflow = "hidden"; imgDiv.style.position = "relative"; imgDiv.style.background = "#000";
-        const img = new Image(); img.src = imageData[alignIndex].src;
-        img.style.width = "720px"; img.style.position = "absolute";
-        img.style.transform = `translate(${imageData[alignIndex].x}px, ${imageData[alignIndex].y}px) scale(${imageData[alignIndex].s})`;
-        imgDiv.appendChild(img);
-
-        const txtDiv = document.createElement('div');
-        txtDiv.style.width = "360px"; txtDiv.style.height = "1080px"; txtDiv.style.background = "var(--bg)"; txtDiv.style.padding = "20px";
-        txtDiv.style.color = "var(--brand)"; txtDiv.style.fontSize = "18px"; txtDiv.style.borderLeft = "1px solid var(--line)";
-        txtDiv.innerText = document.getElementById('mainScript').value;
-
-        stage.appendChild(imgDiv); stage.appendChild(txtDiv);
-    }
-
     async function record(mode) {
         const isInsta = (mode === 'insta');
         const activeImages = imageData.filter(d => d.src !== null);
@@ -185,9 +163,10 @@
         source.buffer = audioBuffer; source.connect(dest); source.connect(audioCtx.destination);
         stream.addTrack(dest.stream.getAudioTracks()[0]); source.start(0);
 
+        const holdTime = isInsta ? 2000 : 0;
         const totalTransTime = isInsta ? 60000 : 45000;
         const restingTime = isInsta ? 20000 : 30000;
-        const totalDuration = totalTransTime + restingTime;
+        const totalDuration = holdTime + totalTransTime + restingTime;
 
         const rec = new MediaRecorder(stream, { mimeType: 'video/webm' });
         const chunks = [];
@@ -207,13 +186,22 @@
 
         function render(t) {
             if(!startTime) startTime = t;
-            let elap = t - startTime, tProg = Math.min(elap / totalTransTime, 1), gProg = Math.min(elap / totalDuration, 1);
+            let elap = t - startTime;
             
+            // Background
             ctx.fillStyle = "#1a0033"; ctx.fillRect(0, 0, canvas.width, canvas.height);
             
             const imgAreaW = isInsta ? 720 : 700;
             const textStartX = isInsta ? 720 : 700;
             const textFrameW = isInsta ? 360 : 700;
+            const contentY = isInsta ? 150 : 0;
+
+            // Titles (Insta Full Width vs Standard Half Width)
+            ctx.textAlign = "center";
+            ctx.fillStyle = "#ffd94a"; ctx.font = "bold 36px Segoe UI"; 
+            ctx.fillText(titleVal, isInsta ? 540 : 350, isInsta ? 70 : 70);
+            ctx.fillStyle = "#ff7ab6"; ctx.font = "bold 20px Segoe UI"; 
+            ctx.fillText(subVal, isInsta ? 540 : 350, isInsta ? 110 : 110);
 
             // Thumbnail Strip (Standard Only)
             if(!isInsta) {
@@ -223,17 +211,26 @@
                 });
             }
 
-            // Image Frame
-            ctx.save(); 
-            ctx.beginPath(); ctx.rect(isInsta ? 0 : 100, isInsta ? 0 : 150, imgAreaW, isInsta ? 1080 : 800); ctx.clip();
-            let sW = 1 / (activeImages.length - 1), cIdx = Math.min(Math.floor(tProg / sW), activeImages.length - 2);
-            let sP = (tProg - (cIdx * sW)) / sW; const iA = activeImages[cIdx], iB = activeImages[cIdx+1];
+            // Image and Scroll Calculations
+            let curModeElap = elap - holdTime;
+            let tProg = Math.max(0, Math.min(curModeElap / totalTransTime, 1));
+            let gProg = Math.min(elap / totalDuration, 1);
 
-            if (elap < totalTransTime) {
+            // Image Logic
+            ctx.save(); 
+            ctx.beginPath(); ctx.rect(isInsta ? 0 : 100, isInsta ? 150 : 150, imgAreaW, isInsta ? 930 : 800); ctx.clip();
+            
+            if (elap < holdTime) {
+                // Initial 2s Hold
+                const f = activeImages[0]; ctx.translate((isInsta ? 0 : 100) + f.x, (isInsta ? 150 : 150) + f.y);
+                ctx.scale(f.s, f.s); ctx.drawImage(f.imgObj, 0, 0, imgAreaW, imgAreaW * (f.imgObj.naturalHeight / f.imgObj.naturalWidth));
+            } else if (curModeElap < totalTransTime) {
+                // Transitions
+                let sW = 1 / (activeImages.length - 1), cIdx = Math.min(Math.floor(tProg / sW), activeImages.length - 2);
+                let sP = (tProg - (cIdx * sW)) / sW; const iA = activeImages[cIdx], iB = activeImages[cIdx+1];
                 [iA, iB].forEach((img, i) => {
                     ctx.save();
-                    let xBase = (isInsta ? 0 : 100) + img.x;
-                    let yBase = (isInsta ? 0 : 150) + img.y;
+                    let xBase = (isInsta ? 0 : 100) + img.x; let yBase = (isInsta ? 150 : 150) + img.y;
                     if(transMode === 'swipe') { let xOff = (i === 0) ? -sP * imgAreaW : imgAreaW - (sP * imgAreaW); ctx.translate(xBase + xOff, yBase); }
                     else if (transMode === 'dissolve') { ctx.globalAlpha = (i === 0) ? 1 - sP : sP; ctx.translate(xBase, yBase); }
                     else if (transMode === 'swap') { ctx.globalAlpha = (sP < 0.5 && i === 0) || (sP >= 0.5 && i === 1) ? 1 : 0; ctx.translate(xBase, yBase); }
@@ -241,15 +238,14 @@
                     ctx.scale(img.s, img.s); ctx.drawImage(img.imgObj, 0, 0, imgAreaW, imgAreaW * (img.imgObj.naturalHeight / img.imgObj.naturalWidth)); ctx.restore();
                 });
             } else {
-                const finalImg = activeImages[activeImages.length - 1];
-                ctx.translate((isInsta ? 0 : 100) + finalImg.x, (isInsta ? 0 : 150) + finalImg.y); 
-                ctx.scale(finalImg.s, finalImg.s);
-                ctx.drawImage(finalImg.imgObj, 0, 0, imgAreaW, imgAreaW * (finalImg.imgObj.naturalHeight / finalImg.imgObj.naturalWidth));
+                // Final Rest
+                const f = activeImages[activeImages.length - 1]; ctx.translate((isInsta ? 0 : 100) + f.x, (isInsta ? 150 : 150) + f.y); 
+                ctx.scale(f.s, f.s); ctx.drawImage(f.imgObj, 0, 0, imgAreaW, imgAreaW * (f.imgObj.naturalHeight / f.imgObj.naturalWidth));
             }
             ctx.restore();
 
-            // Text Frame
-            ctx.fillStyle = "#1a0033"; ctx.fillRect(textStartX, 0, textFrameW, canvas.height);
+            // Text Area Logic
+            ctx.fillStyle = "#1a0033"; ctx.fillRect(textStartX, isInsta ? 150 : 0, textFrameW, canvas.height);
             ctx.fillStyle = "#ffd94a"; ctx.textAlign = "left";
             
             let lns = []; scriptVal.split('\n').forEach(p => { 
@@ -257,13 +253,24 @@
                 let wrds = p.split(' '), cur = ''; wrds.forEach(w => { if((cur+w).length > maxChars){ lns.push(cur); cur=w+' '; } else cur+=w+' '; }); lns.push(cur); 
             });
 
-            if (elap < totalTransTime) { 
+            if (elap < holdTime) {
+                // 2s Hold Static Text
+                let fS = isInsta ? Math.min(22, Math.floor(900 / (lns.length * 1.5))) : 30;
+                ctx.font = `bold ${fS}px Segoe UI`;
+                lns.forEach((l, i) => ctx.fillText(l, textStartX + 20, 200 + (i * (fS * 1.4))));
+            } else if (curModeElap < totalTransTime) {
+                // Scroll with Fade In
+                let fadeAlpha = Math.min((elap - holdTime) / 1000, 1);
+                ctx.globalAlpha = fadeAlpha;
                 ctx.font = isInsta ? "bold 22px Segoe UI" : "24px Segoe UI"; 
-                let th = lns.length * 40, sy = canvas.height, cy = sy - (tProg * (sy + th)); 
+                let th = lns.length * 40, sy = canvas.height, cy = sy - (tProg * (sy + th - 150)); 
                 lns.forEach((l, i) => ctx.fillText(l, textStartX + 20, cy + (i * 40))); 
+                ctx.globalAlpha = 1;
             } else { 
-                let fS = isInsta ? 18 : 30; ctx.font = `bold ${fS}px Segoe UI`; 
-                lns.forEach((l, i) => ctx.fillText(l, textStartX + 20, 50 + (i * (fS * 1.4)))); 
+                // Final Rest Static Text
+                let fS = isInsta ? Math.min(22, Math.floor(900 / (lns.length * 1.5))) : 30;
+                ctx.font = `bold ${fS}px Segoe UI`; 
+                lns.forEach((l, i) => ctx.fillText(l, textStartX + 20, 200 + (i * (fS * 1.4)))); 
             }
 
             if(gProg < 1) { requestAnimationFrame(render); document.getElementById('status').innerText = `PRODUCING: ${Math.round(gProg * 100)}%`; } 
