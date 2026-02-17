@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Voodoo's Attic Master Poster</title>
+    <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png">
+    <link rel="manifest" href="site.webmanifest">
+    
+    <style>
+        :root {
+            --bg: #1a0033; --card: #2a0a4a; --line: #3a2358; --ink: #f7f7f7;
+            --muted: #c59fd6; --accent: #22c55e; --brand: #ffd94a; --pink: #ff7ab6;
+            --insta: linear-gradient(45deg, #f9ce34, #ee2a7b, #6228d7);
+            --input-bg: #0e1520;
+        }
+        body { background: var(--bg); color: var(--ink); font-family: 'Segoe UI', sans-serif; padding: 20px; margin: 0; overflow-x: hidden; }
+        .interface { display: grid; grid-template-columns: 420px 1fr; gap: 20px; width: 98%; margin: auto; }
+        .controls { background: var(--card); padding: 20px; border-radius: 16px; border: 1px solid var(--line); height: 95vh; overflow-y: auto; box-shadow: 0 10px 30px rgba(0,0,0,0.3); }
+        .thumb-strip { width: 80px; height: 800px; position: absolute; left: 10px; top: 150px; display: flex; flex-direction: column; gap: 10px; z-index: 10; }
+        .thumb-box { width: 70px; height: 70px; border: 2px solid var(--line); border-radius: 8px; overflow: hidden; background: #000; opacity: 0.6; }
+        .thumb-box.active { border-color: var(--brand); opacity: 1; transform: scale(1.05); }
+        .thumb-box img { width: 100%; height: 100%; object-fit: cover; }
+        .img-slot { background: rgba(0,0,0,0.2); border: 1px solid var(--line); padding: 10px; margin-bottom: 8px; border-radius: 8px; font-size: 12px; }
+        .img-slot.active { border-color: var(--pink); background: rgba(255, 122, 182, 0.1); }
+        .viewer-box { position: relative; width: 1400px; height: 950px; border: 2px solid var(--line); background: #000; overflow: hidden; border-radius: 16px; }
+        #paint-area { width: 700px; height: 950px; float: left; position: relative; padding-left: 100px; box-sizing: border-box; }
+        #text-area { width: 700px; height: 950px; float: left; background: var(--bg); border-left: 1px solid var(--line); position: relative; }
+        input[type="text"], textarea { width: 100%; background: var(--input-bg); color: var(--brand); border: 1px solid var(--line); border-radius: 8px; padding: 10px; margin-bottom: 10px; }
+        .chip-container { display: flex; gap: 5px; margin-bottom: 15px; flex-wrap: wrap; }
+        .chip { background: var(--line); color: var(--muted); padding: 6px 12px; border-radius: 20px; font-size: 12px; cursor: pointer; border: 1px solid transparent; }
+        .chip.active { background: var(--brand); color: var(--bg); font-weight: bold; }
+        .audio-btn { background: #3b82f6; color: white; padding: 12px; border-radius: 8px; font-weight: 800; cursor: pointer; display: block; text-align: center; margin-bottom: 10px; font-size: 14px; }
+        .pink-btn { background: var(--pink); color: #1a0033; padding: 12px; border: none; border-radius: 8px; cursor: pointer; width: 100%; margin-bottom: 15px; font-weight: 900; text-transform: uppercase; font-size: 14px; }
+        .rec-btn { background: var(--accent); color: #fff; width: 100%; padding: 20px; border: none; border-radius: 8px; font-weight: 800; cursor: pointer; font-size: 16px; margin-bottom: 8px; }
+        .insta-btn { background: var(--insta); color: #fff; width: 100%; padding: 20px; border: none; border-radius: 8px; font-weight: 800; cursor: pointer; font-size: 16px; text-shadow: 1px 1px 2px rgba(0,0,0,0.5); }
+        canvas { display: none; }
+        .img-meta { position: absolute; left: 120px; bottom: 40px; background: rgba(0, 0, 0, 0.7); color: #fff; padding: 8px 12px; border-radius: 8px; max-width: 420px; font-size: 12px; border: 1px solid var(--brand); }
+        .img-meta-price { font-weight: 800; color: var(--brand); margin-bottom: 4px; }
+        .img-meta-desc { color: var(--muted); font-size: 11px; }
+    </style>
+</head>
+<body>
+
+<div class="interface">
+    <div class="controls">
+        <h2 style="color: var(--brand); margin-top:0; text-align:center;">Voodoo's Attic Master Poster</h2>
+        
+        <input type="text" id="vidTitle" placeholder="MAIN TITLE">
+        <input type="text" id="vidSub" placeholder="SUBTITLE">
+
+        <div class="chip-container">
+            <div class="chip active" onclick="setTrans('melt')">MELT</div>
+            <div class="chip" onclick="setTrans('swipe')">SWIPE</div>
+            <div class="chip" onclick="setTrans('dissolve')">DISSOLVE</div>
+            <div class="chip" onclick="setTrans('swap')">SWAP</div>
+        </div>
+
+        <button onclick="clearAlignment()" class="pink-btn">✔️ LOCK ALIGNMENT</button>
+        
+        <div id="image-inputs"></div>
+        <textarea id="mainScript" style="height:120px;" placeholder="Post Text..."></textarea>
+
+        <label class="audio-btn">🎵 UPLOAD TRACK (MP4/MP3) <input type="file" id="audioInput" accept="audio/*,video/mp4" style="display:none" onchange="loadAudio(event)"></label>
+        <div id="audioStatus" style="font-size:11px; color:var(--muted); margin-bottom:15px; text-align:center;">No track loaded.</div>
+
+        <button onclick="record('standard')" class="rec-btn">🎬 START STANDARD PRODUCTION</button>
+        <button onclick="record('insta')" class="insta-btn">📸 START INSTA-READY PRODUCTION</button>
+        
+        <div id="status" style="margin-top:10px; color: var(--brand); font-weight: bold; text-align:center;">System Standby.</div>
+        <a id="dlLink" href="#" style="display:none">Download</a>
+    </div>
+    
+    <div class="viewer-box" id="viewerContainer">
+        <div class="thumb-strip" id="thumbStrip"></div>
+        <div id="paint-area"><div id="stage"></div></div>
+        <div id="text-area"></div>
+    </div>
+</div>
+
+<canvas id="c"></canvas>
+
+<script>
+    const MAX_IMAGES = 6;
+    let imageData = Array.from({length: MAX_IMAGES}, () => ({ src: null, x: 0, y: 0, s: 1, imgObj: null, price: '', desc: '' }));
+    let alignIndex = -1, transMode = 'melt', audioBuffer = null, audioCtx = null;
+
+    function setTrans(m) { transMode = m; document.querySelectorAll('.chip').forEach(c => c.classList.toggle('active', c.innerText.toLowerCase() === m)); }
+    
+    async function loadAudio(e) { 
+        const file = e.target.files[0];
+        if(!file) return;
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const reader = new FileReader();
+        reader.onload = async (ev) => {
+            try {
+                audioBuffer = await audioCtx.decodeAudioData(ev.target.result);
+                document.getElementById('audioStatus').innerText = "TRACK READY: " + file.name;
+            } catch (err) { alert("Audio Format Error."); }
+        };
+        reader.readAsArrayBuffer(file);
+    }
+
+    const inputContainer = document.getElementById('image-inputs');
+    for(let i=0; i < MAX_IMAGES; i++) {
+        const div = document.createElement('div'); div.className = `img-slot`; div.id = `slot-${i}`;
+        div.innerHTML = `
+            <div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
+                <strong>SLOT ${i+1}</strong>
+                <input type="radio" name="focus" onclick="setAlign(${i})">
+            </div>
+            <input type="file" onchange="loadImg(event, ${i})" style="width:100%; font-size:10px; margin-top:5px;">
+            <input type="text" placeholder="Price Tag (e.g. $40)" style="margin-top:6px; font-size:11px;" oninput="setPrice(${i}, this.value)">
+            <input type="text" placeholder="Short description" style="margin-top:4px; font-size:11px;" oninput="setDesc(${i}, this.value)">
+        `;
+        inputContainer.appendChild(div);
+        const thumb = document.createElement('div'); thumb.className = 'thumb-box'; thumb.id = `thumb-${i}`;
+        document.getElementById('thumbStrip').appendChild(thumb);
+    }
+
+    function loadImg(e, idx) { 
+        const img = new Image(); img.src = URL.createObjectURL(e.target.files[0]); 
+        img.onload = () => { imageData[idx].src = img.src; imageData[idx].imgObj = img; document.getElementById(`thumb-${idx}`).innerHTML = `<img src="${img.src}">`; updateStage(); }; 
+    }
+
+    function setPrice(idx, val) {
+        imageData[idx].price = val;
+        updateStage();
+    }
+
+    function setDesc(idx, val) {
+        imageData[idx].desc = val;
+        updateStage();
+    }
+
+    function setAlign(idx) { 
+        alignIndex = idx; 
+        document.querySelectorAll('.img-slot').forEach(s => s.classList.remove('active')); 
+        document.getElementById(`slot-${idx}`).classList.add('active'); 
+        document.querySelectorAll('.thumb-box').forEach((b, i) => b.classList.toggle('active', i === idx)); 
+        updateStage(); 
+    }
+
+    function clearAlignment() { 
+        alignIndex = -1; 
+        document.querySelectorAll('.img-slot').forEach(s => s.classList.remove('active')); 
+        updateStage(); 
+    }
+
+    window.onkeydown = e => {
+        if(alignIndex < 0) return;
+        let d = imageData[alignIndex];
+        if (e.key === "ArrowUp") d.y -= 1; if (e.key === "ArrowDown") d.y += 1;
+        if (e.key === "ArrowLeft") d.x -= 1; if (e.key === "ArrowRight") d.x += 1;
+        if (e.key === "+") d.s += 0.001; if (e.key === "-") d.s -= 0.001;
+        updateStage();
+    };
+
+    function updateStage() {
+        const stage = document.getElementById('stage'); 
+        stage.innerHTML = '';
+        if(alignIndex >= 0 && imageData[alignIndex].src) {
+            const d = imageData[alignIndex];
+            const img = new Image(); img.src = d.src;
+            img.style.width = "600px"; img.style.position = "absolute"; img.style.top = "150px"; img.style.left = "100px";
+            img.style.transform = `translate(${d.x}px, ${d.y}px) scale(${d.s})`;
+            stage.appendChild(img);
+
+            if (d.price || d.desc) {
+                const meta = document.createElement('div');
+                meta.className = 'img-meta';
+                meta.innerHTML = `
+                    <div class="img-meta-price">${d.price || ''}</div>
+                    <div class="img-meta-desc">${d.desc || ''}</div>
+                `;
+                stage.appendChild(meta);
+            }
+        }
+    }
+
+    async function record(mode) {
+        const isInsta = (mode === 'insta');
+        const activeImages = imageData.filter(d => d.src !== null);
+        if(activeImages.length < 2) return alert("Upload at least 2 images.");
+        if(!audioBuffer) return alert("Upload audio track first.");
+
+        const canvas = document.getElementById('c'), ctx = canvas.getContext('2d');
+        canvas.width = isInsta ? 1080 : 1400;
+        canvas.height = isInsta ? 1080 : 950;
+        
+        const stream = canvas.captureStream(30);
+        if (audioCtx.state === 'suspended') await audioCtx.resume();
+        const dest = audioCtx.createMediaStreamDestination();
+        const source = audioCtx.createBufferSource();
+        source.buffer = audioBuffer; source.connect(dest); source.connect(audioCtx.destination);
+        stream.addTrack(dest.stream.getAudioTracks()[0]); source.start(0);
+
+        const holdTime = isInsta ? 2000 : 0;
+        const totalTransTime = isInsta ? 60000 : 45000;
+        const restingTime = isInsta ? 20000 : 30000;
+        const totalDuration = holdTime + totalTransTime + restingTime;
+
+        const rec = new MediaRecorder(stream, { mimeType: 'video/webm' });
+        const chunks = [];
+        rec.ondataavailable = e => chunks.push(e.data);
+        rec.onstop = () => {
+            source.stop();
+            const dl = document.getElementById('dlLink');
+            dl.href = URL.createObjectURL(new Blob(chunks, { type: 'video/mp4' }));
+            dl.download = isInsta ? 'voodoos_insta_final.mp4' : 'voodoos_attic_final.mp4';
+            dl.click();
+            document.getElementById('status').innerText = "DONE!";
+        };
+
+        rec.start();
+        let startTime = null;
+        const scriptVal = document.getElementById('mainScript').value, titleVal = document.getElementById('vidTitle').value.toUpperCase(), subVal = document.getElementById('vidSub').value;
+
+        function render(t) {
+            if(!startTime) startTime = t;
+            let elap = t - startTime;
+            
+            // Background
+            ctx.fillStyle = "#1a0033"; ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            const imgAreaW = isInsta ? 720 : 700;
+            const textStartX = isInsta ? 720 : 700;
+            const textFrameW = isInsta ? 360 : 700;
+            const contentY = isInsta ? 150 : 0;
+
+            // Titles (Insta Full Width vs Standard Half Width)
+            ctx.textAlign = "center";
+            ctx.fillStyle = "#ffd94a"; ctx.font = "bold 36px Segoe UI"; 
+            ctx.fillText(titleVal, isInsta ? 540 : 350, isInsta ? 70 : 70);
+            ctx.fillStyle = "#ff7ab6"; ctx.font = "bold 20px Segoe UI"; 
+            ctx.fillText(subVal, isInsta ? 540 : 350, isInsta ? 110 : 110);
+
+            // Thumbnail Strip (Standard Only)
+            if(!isInsta) {
+                ctx.fillStyle = "#2a0a4a"; ctx.fillRect(0, 0, 700, 150);
+                activeImages.forEach((img, i) => {
+                    let ty = 150 + (i * 85); ctx.strokeStyle = "#3a2358"; ctx.strokeRect(15, ty, 70, 70); ctx.drawImage(img.imgObj, 15, ty, 70, 70);
+                });
+            }
+
+            // Image and Scroll Calculations
+            let curModeElap = elap - holdTime;
+            let tProg = Math.max(0, Math.min(curModeElap / totalTransTime, 1));
+            let gProg = Math.min(elap / totalDuration, 1);
+
+            // Image Logic + active metadata
+            let activeMeta = null;
+            ctx.save(); 
+            ctx.beginPath(); ctx.rect(isInsta ? 0 : 100, isInsta ? 150 : 150, imgAreaW, isInsta ? 930 : 800); ctx.clip();
+            
+            if (elap < holdTime) {
+                // Initial 2s Hold
+                const f = activeImages[0]; 
+                activeMeta = f;
+                ctx.translate((isInsta ? 0 : 100) + f.x, (isInsta ? 150 : 150) + f.y);
+                ctx.scale(f.s, f.s); ctx.drawImage(f.imgObj, 0, 0, imgAreaW, imgAreaW * (f.imgObj.naturalHeight / f.imgObj.naturalWidth));
+            } else if (curModeElap < totalTransTime) {
+                // Transitions
+                let sW = 1 / (activeImages.length - 1), cIdx = Math.min(Math.floor(tProg / sW), activeImages.length - 2);
+                let sP = (tProg - (cIdx * sW)) / sW; const iA = activeImages[cIdx], iB = activeImages[cIdx+1];
+                activeMeta = sP < 0.5 ? iA : iB;
+                [iA, iB].forEach((img, i) => {
+                    ctx.save();
+                    let xBase = (isInsta ? 0 : 100) + img.x; let yBase = (isInsta ? 150 : 150) + img.y;
+                    if(transMode === 'swipe') { let xOff = (i === 0) ? -sP * imgAreaW : imgAreaW - (sP * imgAreaW); ctx.translate(xBase + xOff, yBase); }
+                    else if (transMode === 'dissolve') { ctx.globalAlpha = (i === 0) ? 1 - sP : sP; ctx.translate(xBase, yBase); }
+                    else if (transMode === 'swap') { ctx.globalAlpha = (sP < 0.5 && i === 0) || (sP >= 0.5 && i === 1) ? 1 : 0; ctx.translate(xBase, yBase); }
+                    else { ctx.globalAlpha = (i === 0) ? 1 : sP; ctx.translate(xBase, yBase); }
+                    ctx.scale(img.s, img.s); ctx.drawImage(img.imgObj, 0, 0, imgAreaW, imgAreaW * (img.imgObj.naturalHeight / img.imgObj.naturalWidth)); ctx.restore();
+                });
+            } else {
+                // Final Rest
+                const f = activeImages[activeImages.length - 1]; 
+                activeMeta = f;
+                ctx.translate((isInsta ? 0 : 100) + f.x, (isInsta ? 150 : 150) + f.y); 
+                ctx.scale(f.s, f.s); ctx.drawImage(f.imgObj, 0, 0, imgAreaW, imgAreaW * (f.imgObj.naturalHeight / f.imgObj.naturalWidth));
+            }
+            ctx.restore();
+
+            // Draw price tag + description in video if provided
+            if (activeMeta && (activeMeta.price || activeMeta.desc)) {
+                const boxX = isInsta ? 30 : 130;
+                const boxY = isInsta ? canvas.height - 130 : canvas.height - 110;
+                const boxW = isInsta ? 420 : 420;
+                const boxH = 80;
+
+                ctx.save();
+                ctx.fillStyle = "rgba(0, 0, 0, 0.7)";
+                ctx.strokeStyle = "#ffd94a";
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.roundRect(boxX, boxY, boxW, boxH, 10);
+                ctx.fill();
+                ctx.stroke();
+
+                ctx.fillStyle = "#ffd94a";
+                ctx.font = "bold 22px Segoe UI";
+                ctx.textAlign = "left";
+                if (activeMeta.price) {
+                    ctx.fillText(activeMeta.price, boxX + 14, boxY + 30);
+                }
+
+                if (activeMeta.desc) {
+                    ctx.fillStyle = "#c59fd6";
+                    ctx.font = "14px Segoe UI";
+                    const desc = activeMeta.desc;
+                    const maxChars = 40;
+                    let line = "";
+                    let y = boxY + 52;
+                    desc.split(" ").forEach(word => {
+                        if ((line + word).length > maxChars) {
+                            ctx.fillText(line, boxX + 14, y);
+                            line = word + " ";
+                            y += 18;
+                        } else {
+                            line += word + " ";
+                        }
+                    });
+                    if (line.trim()) {
+                        ctx.fillText(line, boxX + 14, y);
+                    }
+                }
+                ctx.restore();
+            }
+
+            // Text Area Logic
+            ctx.fillStyle = "#1a0033"; ctx.fillRect(textStartX, isInsta ? 150 : 0, textFrameW, canvas.height);
+            ctx.fillStyle = "#ffd94a"; ctx.textAlign = "left";
+            
+            let lns = []; scriptVal.split('\n').forEach(p => { 
+                let maxChars = isInsta ? 25 : 45;
+                let wrds = p.split(' '), cur = ''; wrds.forEach(w => { if((cur+w).length > maxChars){ lns.push(cur); cur=w+' '; } else cur+=w+' '; }); lns.push(cur); 
+            });
+
+            if (elap < holdTime) {
+                // 2s Hold Static Text
+                let fS = isInsta ? Math.min(22, Math.floor(900 / (lns.length * 1.5))) : 30;
+                ctx.font = `bold ${fS}px Segoe UI`;
+                lns.forEach((l, i) => ctx.fillText(l, textStartX + 20, 200 + (i * (fS * 1.4))));
+            } else if (curModeElap < totalTransTime) {
+                // Scroll with Fade In
+                let fadeAlpha = Math.min((elap - holdTime) / 1000, 1);
+                ctx.globalAlpha = fadeAlpha;
+                ctx.font = isInsta ? "bold 22px Segoe UI" : "24px Segoe UI"; 
+                let th = lns.length * 40, sy = canvas.height, cy = sy - (tProg * (sy + th - 150)); 
+                lns.forEach((l, i) => ctx.fillText(l, textStartX + 20, cy + (i * 40))); 
+                ctx.globalAlpha = 1;
+            } else { 
+                // Final Rest Static Text
+                let fS = isInsta ? Math.min(22, Math.floor(900 / (lns.length * 1.5))) : 30;
+                ctx.font = `bold ${fS}px Segoe UI`; 
+                lns.forEach((l, i) => ctx.fillText(l, textStartX + 20, 200 + (i * (fS * 1.4)))); 
+            }
+
+            if(gProg < 1) { requestAnimationFrame(render); document.getElementById('status').innerText = `PRODUCING: ${Math.round(gProg * 100)}%`; } 
+            else { rec.stop(); }
+        }
+        requestAnimationFrame(render);
+    }
+</script>
+</body>
+</html>
