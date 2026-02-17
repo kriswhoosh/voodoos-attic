@@ -1,0 +1,13 @@
+# Ignore large video files
+*.mp4
+*.mov
+*.avi
+
+# Ignore system junk
+.DS_Store
+Thumbs.db
+
+# Ignore Python environment folders
+__pycache__/
+*.pyc
+venv/

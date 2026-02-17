@@ -57,6 +57,11 @@
             <div class="chip" onclick="setTrans('swap')">SWAP</div>
         </div>
 
+        <div class="chip-container">
+            <div class="chip overlay-chip active" onclick="setOverlayPos('bottom')">PRICE: BOTTOM</div>
+            <div class="chip overlay-chip" onclick="setOverlayPos('top')">PRICE: TOP</div>
+        </div>
+
         <button onclick="clearAlignment()" class="pink-btn">✔️ LOCK ALIGNMENT</button>
         
         <div id="image-inputs"></div>
@@ -85,8 +90,24 @@
     const MAX_IMAGES = 6;
     let imageData = Array.from({length: MAX_IMAGES}, () => ({ src: null, x: 0, y: 0, s: 1, imgObj: null, price: '', desc: '' }));
     let alignIndex = -1, transMode = 'melt', audioBuffer = null, audioCtx = null;
+    let overlayPos = 'bottom'; // 'top' or 'bottom'
 
-    function setTrans(m) { transMode = m; document.querySelectorAll('.chip').forEach(c => c.classList.toggle('active', c.innerText.toLowerCase() === m)); }
+    function setTrans(m) { 
+        transMode = m; 
+        document.querySelectorAll('.chip').forEach(c => {
+            if (!c.classList.contains('overlay-chip')) {
+                c.classList.toggle('active', c.innerText.toLowerCase() === m);
+            }
+        }); 
+    }
+
+    function setOverlayPos(pos) {
+        overlayPos = pos;
+        document.querySelectorAll('.overlay-chip').forEach(c => {
+            const isBottom = c.innerText.toLowerCase().includes('bottom');
+            c.classList.toggle('active', (pos === 'bottom' && isBottom) || (pos === 'top' && !isBottom));
+        });
+    }
     
     async function loadAudio(e) { 
         const file = e.target.files[0];
@@ -286,7 +307,10 @@
             // Draw price tag + description in video if provided
             if (activeMeta && (activeMeta.price || activeMeta.desc)) {
                 const boxX = isInsta ? 30 : 130;
-                const boxY = isInsta ? canvas.height - 130 : canvas.height - 110;
+                const isTop = overlayPos === 'top';
+                const boxY = isTop
+                    ? (isInsta ? 180 : 160)
+                    : (isInsta ? canvas.height - 130 : canvas.height - 110);
                 const boxW = isInsta ? 420 : 420;
                 const boxH = 80;
 
