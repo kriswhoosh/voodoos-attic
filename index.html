@@ -211,7 +211,7 @@
 
         const canvas = document.getElementById('c'), ctx = canvas.getContext('2d');
         canvas.width = isInsta ? 1080 : 1400;
-        canvas.height = isInsta ? 1080 : 950;
+        canvas.height = isInsta ? 1920 : 950;
         
         const stream = canvas.captureStream(30);
         if (audioCtx.state === 'suspended') await audioCtx.resume();
@@ -248,17 +248,49 @@
             // Background
             ctx.fillStyle = "#1a0033"; ctx.fillRect(0, 0, canvas.width, canvas.height);
             
-            const imgAreaW = isInsta ? 720 : 700;
-            const textStartX = isInsta ? 720 : 700;
-            const textFrameW = isInsta ? 360 : 700;
-            const contentY = isInsta ? 150 : 0;
+            // Layout differs for Insta vs Standard
+            let imgAreaW, imgAreaH, imgBaseX, imgBaseY, textStartX, textFrameW;
+            let instaTitleTop, instaTitleH, instaSubTop, instaSubH, instaTextTop, instaTextH, instaImgTop, instaImgH;
+            if (isInsta) {
+                // 1080x1920 exact layout blocks:
+                // TITLE 1080x120, SUBTITLE 1080x120, TEXT 1080x360, IMAGE 1080x1320
+                instaTitleTop = 0;   instaTitleH = 120;
+                instaSubTop = 120;   instaSubH = 120;
+                instaTextTop = 240;  instaTextH = 360;
+                instaImgTop = 600;   instaImgH = 1320;
 
-            // Titles (Insta Full Width vs Standard Half Width)
+                imgAreaW = 1080;
+                imgAreaH = 1320;  // image block height for draw
+                imgBaseX = 0;
+                imgBaseY = instaImgTop;
+                textStartX = 0;
+                textFrameW = 1080;
+            } else {
+                imgAreaW = 700;
+                imgAreaH = 800;  // standard image area height
+                imgBaseX = 100;
+                imgBaseY = 150;
+                textStartX = 700;
+                textFrameW = 700;
+            }
+
+            // Titles
             ctx.textAlign = "center";
-            ctx.fillStyle = "#ffd94a"; ctx.font = "bold 36px Segoe UI"; 
-            ctx.fillText(titleVal, isInsta ? 540 : 350, isInsta ? 70 : 70);
-            ctx.fillStyle = "#ff7ab6"; ctx.font = "bold 20px Segoe UI"; 
-            ctx.fillText(subVal, isInsta ? 540 : 350, isInsta ? 110 : 110);
+            if (isInsta) {
+                // Title bar (1080x120) + Subtitle bar (1080x120)
+                ctx.fillStyle = "#2a0a4a";
+                ctx.fillRect(0, instaTitleTop, canvas.width, instaTitleH + instaSubH);
+
+                ctx.fillStyle = "#ffd94a"; ctx.font = "bold 48px Segoe UI";
+                ctx.fillText(titleVal, 540, instaTitleTop + 78);
+                ctx.fillStyle = "#ff7ab6"; ctx.font = "bold 32px Segoe UI";
+                ctx.fillText(subVal, 540, instaSubTop + 78);
+            } else {
+                ctx.fillStyle = "#ffd94a"; ctx.font = "bold 36px Segoe UI"; 
+                ctx.fillText(titleVal, 350, 70);
+                ctx.fillStyle = "#ff7ab6"; ctx.font = "bold 20px Segoe UI"; 
+                ctx.fillText(subVal, 350, 110);
+            }
 
             // Thumbnail Strip (Standard Only)
             if(!isInsta) {
@@ -276,14 +308,25 @@
             // Image Logic + active metadata
             let activeMeta = null;
             ctx.save(); 
-            ctx.beginPath(); ctx.rect(isInsta ? 0 : 100, isInsta ? 150 : 150, imgAreaW, isInsta ? 930 : 800); ctx.clip();
+            if (isInsta) {
+                // Clip to 1080x1320 image block at bottom
+                ctx.beginPath();
+                ctx.rect(imgBaseX, imgBaseY, imgAreaW, instaImgH);
+                ctx.clip();
+            } else {
+                ctx.beginPath();
+                ctx.rect(imgBaseX, imgBaseY, imgAreaW, 800);
+                ctx.clip();
+            }
             
             if (elap < holdTime) {
                 // Initial 2s Hold
                 const f = activeImages[0]; 
                 activeMeta = f;
-                ctx.translate((isInsta ? 0 : 100) + f.x, (isInsta ? 150 : 150) + f.y);
-                ctx.scale(f.s, f.s); ctx.drawImage(f.imgObj, 0, 0, imgAreaW, imgAreaW * (f.imgObj.naturalHeight / f.imgObj.naturalWidth));
+                ctx.translate(imgBaseX + f.x, imgBaseY + f.y);
+                ctx.scale(f.s, f.s);
+                const drawH = isInsta ? imgAreaH : (imgAreaW * (f.imgObj.naturalHeight / f.imgObj.naturalWidth));
+                ctx.drawImage(f.imgObj, 0, 0, imgAreaW, drawH);
             } else if (curModeElap < totalTransTime) {
                 // Transitions
                 let sW = 1 / (activeImages.length - 1), cIdx = Math.min(Math.floor(tProg / sW), activeImages.length - 2);
@@ -291,30 +334,37 @@
                 activeMeta = sP < 0.5 ? iA : iB;
                 [iA, iB].forEach((img, i) => {
                     ctx.save();
-                    let xBase = (isInsta ? 0 : 100) + img.x; let yBase = (isInsta ? 150 : 150) + img.y;
+                    let xBase = imgBaseX + img.x; let yBase = imgBaseY + img.y;
                     if(transMode === 'swipe') { let xOff = (i === 0) ? -sP * imgAreaW : imgAreaW - (sP * imgAreaW); ctx.translate(xBase + xOff, yBase); }
                     else if (transMode === 'dissolve') { ctx.globalAlpha = (i === 0) ? 1 - sP : sP; ctx.translate(xBase, yBase); }
                     else if (transMode === 'swap') { ctx.globalAlpha = (sP < 0.5 && i === 0) || (sP >= 0.5 && i === 1) ? 1 : 0; ctx.translate(xBase, yBase); }
                     else { ctx.globalAlpha = (i === 0) ? 1 : sP; ctx.translate(xBase, yBase); }
-                    ctx.scale(img.s, img.s); ctx.drawImage(img.imgObj, 0, 0, imgAreaW, imgAreaW * (img.imgObj.naturalHeight / img.imgObj.naturalWidth)); ctx.restore();
+                    ctx.scale(img.s, img.s);
+                    const dH = isInsta ? imgAreaH : (imgAreaW * (img.imgObj.naturalHeight / img.imgObj.naturalWidth));
+                    ctx.drawImage(img.imgObj, 0, 0, imgAreaW, dH);
+                    ctx.restore();
                 });
             } else {
                 // Final Rest
                 const f = activeImages[activeImages.length - 1]; 
                 activeMeta = f;
-                ctx.translate((isInsta ? 0 : 100) + f.x, (isInsta ? 150 : 150) + f.y); 
-                ctx.scale(f.s, f.s); ctx.drawImage(f.imgObj, 0, 0, imgAreaW, imgAreaW * (f.imgObj.naturalHeight / f.imgObj.naturalWidth));
+                ctx.translate(imgBaseX + f.x, imgBaseY + f.y); 
+                ctx.scale(f.s, f.s);
+                const finalDrawH = isInsta ? imgAreaH : (imgAreaW * (f.imgObj.naturalHeight / f.imgObj.naturalWidth));
+                ctx.drawImage(f.imgObj, 0, 0, imgAreaW, finalDrawH);
             }
             ctx.restore();
 
             // Draw price tag + description in video if provided
             if (activeMeta && (activeMeta.price || activeMeta.desc)) {
-                const boxX = isInsta ? 30 : 130;
+                const boxX = isInsta ? 40 : 130;
                 const isTop = overlayPos === 'top';
-                const boxY = isTop
-                    ? (isInsta ? 180 : 160)
-                    : (isInsta ? canvas.height - 160 : canvas.height - 140);
-                const boxW = isInsta ? 500 : 500;
+                // For Insta, anchor to top/bottom of the image block (1080x1320)
+                const instaImgTopForBox = imgBaseY;
+                const boxY = isInsta
+                    ? (isTop ? instaImgTopForBox + 40 : instaImgTopForBox + 1320 - 160)
+                    : (isTop ? 160 : canvas.height - 140);
+                const boxW = isInsta ? 520 : 500;
                 const boxH = 120;
 
                 ctx.save();
@@ -356,52 +406,103 @@
                 ctx.restore();
             }
 
-            // Text Area Logic (clipped so it never crosses title/subtitle)
-            const textAreaTop = isInsta ? 150 : 130;  // keep text below titles
-            ctx.fillStyle = "#1a0033"; ctx.fillRect(textStartX, isInsta ? 150 : 0, textFrameW, canvas.height);
-            ctx.fillStyle = "#ffd94a"; ctx.textAlign = "left";
-            
-            let lns = []; scriptVal.split('\n').forEach(p => { 
-                let maxChars = isInsta ? 25 : 45;
-                let wrds = p.split(' '), cur = ''; 
-                wrds.forEach(w => { 
-                    if((cur+w).length > maxChars){ 
-                        lns.push(cur); 
-                        cur=w+' '; 
-                    } else {
-                        cur+=w+' '; 
-                    }
-                }); 
-                lns.push(cur); 
-            });
+            if (isInsta) {
+                // INSTA: fixed 1080x360 script panel (non-scrolling), autofit with clear line spacing
+                const textAreaTop = instaTextTop;
+                const textAreaHeight = instaTextH;
+                const padX = 60;
+                const padY = 40;
+                const maxWidth = textFrameW - padX * 2;
+                const lineSpacingMult = 1.55;  // space between lines
 
-            // Clip all script text to the right-hand text panel area
-            ctx.save();
-            ctx.beginPath();
-            ctx.rect(textStartX, textAreaTop, textFrameW, canvas.height - textAreaTop);
-            ctx.clip();
+                ctx.fillStyle = "#1a0033";
+                ctx.fillRect(0, textAreaTop, textFrameW, textAreaHeight);
+                ctx.fillStyle = "#ffd94a";
+                ctx.textAlign = "center";
 
-            if (elap < holdTime) {
-                // 2s Hold Static Text
-                let fS = isInsta ? Math.min(22, Math.floor(900 / (lns.length * 1.5))) : 30;
-                ctx.font = `bold ${fS}px Segoe UI`;
-                lns.forEach((l, i) => ctx.fillText(l, textStartX + 20, textAreaTop + 50 + (i * (fS * 1.4))));
-            } else if (curModeElap < totalTransTime) {
-                // Scroll with Fade In
-                let fadeAlpha = Math.min((elap - holdTime) / 1000, 1);
-                ctx.globalAlpha = fadeAlpha;
-                ctx.font = isInsta ? "bold 22px Segoe UI" : "24px Segoe UI"; 
-                let th = lns.length * 40, sy = canvas.height, cy = sy - (tProg * (sy + th - 150)); 
-                lns.forEach((l, i) => ctx.fillText(l, textStartX + 20, cy + (i * 40))); 
-                ctx.globalAlpha = 1;
-            } else { 
-                // Final Rest Static Text
-                let fS = isInsta ? Math.min(22, Math.floor(900 / (lns.length * 1.5))) : 30;
-                ctx.font = `bold ${fS}px Segoe UI`; 
-                lns.forEach((l, i) => ctx.fillText(l, textStartX + 20, textAreaTop + 50 + (i * (fS * 1.4)))); 
+                function wrapLinesForFs(fs) {
+                    ctx.font = `bold ${fs}px Segoe UI`;
+                    const res = [];
+                    scriptVal.split('\n').forEach(p => {
+                        const words = p.split(' ').filter(Boolean);
+                        let line = "";
+                        words.forEach(word => {
+                            const testLine = line ? line + " " + word : word;
+                            if (ctx.measureText(testLine).width > maxWidth && line) {
+                                res.push(line);
+                                line = word;
+                            } else {
+                                line = testLine;
+                            }
+                        });
+                        if (line) res.push(line);
+                    });
+                    return res;
+                }
+
+                const maxFs = 40, minFs = 14;
+                let fs = maxFs, lines = [], lineH = 0;
+                while (fs >= minFs) {
+                    lines = wrapLinesForFs(fs);
+                    lineH = fs * lineSpacingMult;
+                    const needed = lines.length * lineH;
+                    if (needed <= (textAreaHeight - padY * 2)) break;
+                    fs -= 1;
+                }
+
+                // Clip + center vertically inside the 360px panel
+                ctx.save();
+                ctx.beginPath();
+                ctx.rect(0, textAreaTop, textFrameW, textAreaHeight);
+                ctx.clip();
+
+                const totalTextHeight = lines.length * lineH;
+                const startY = textAreaTop + (textAreaHeight - totalTextHeight) / 2 + fs;
+                lines.forEach((l, i) => {
+                    ctx.fillText(l, textStartX + textFrameW / 2, startY + i * lineH);
+                });
+
+                ctx.restore();
+
+            } else {
+                // STANDARD: original scrolling right-hand text panel
+                ctx.fillStyle = "#1a0033"; ctx.fillRect(textStartX, 0, textFrameW, canvas.height);
+                ctx.fillStyle = "#ffd94a"; ctx.textAlign = "left";
+                
+                let lns = []; scriptVal.split('\n').forEach(p => { 
+                    let maxChars = 45;
+                    let wrds = p.split(' '), cur = ''; 
+                    wrds.forEach(w => { 
+                        if((cur+w).length > maxChars){ 
+                            lns.push(cur); 
+                            cur=w+' '; 
+                        } else {
+                            cur+=w+' '; 
+                        }
+                    }); 
+                    lns.push(cur); 
+                });
+
+                if (elap < holdTime) {
+                    // 2s Hold Static Text
+                    let fS = 30;
+                    ctx.font = `bold ${fS}px Segoe UI`;
+                    lns.forEach((l, i) => ctx.fillText(l, textStartX + 20, 200 + (i * (fS * 1.4))));
+                } else if (curModeElap < totalTransTime) {
+                    // Scroll with Fade In
+                    let fadeAlpha = Math.min((elap - holdTime) / 1000, 1);
+                    ctx.globalAlpha = fadeAlpha;
+                    ctx.font = "24px Segoe UI"; 
+                    let th = lns.length * 40, sy = canvas.height, cy = sy - (tProg * (sy + th - 150)); 
+                    lns.forEach((l, i) => ctx.fillText(l, textStartX + 20, cy + (i * 40))); 
+                    ctx.globalAlpha = 1;
+                } else { 
+                    // Final Rest Static Text
+                    let fS = 30;
+                    ctx.font = `bold ${fS}px Segoe UI`; 
+                    lns.forEach((l, i) => ctx.fillText(l, textStartX + 20, 200 + (i * (fS * 1.4)))); 
+                }
             }
-
-            ctx.restore();
 
             if(gProg < 1) { requestAnimationFrame(render); document.getElementById('status').innerText = `PRODUCING: ${Math.round(gProg * 100)}%`; } 
             else { rec.stop(); }
