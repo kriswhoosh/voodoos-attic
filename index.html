@@ -356,94 +356,42 @@
                 ctx.restore();
             }
 
-            // Text Area Logic - reserve top for title/subtitle, clip scroll text below
-            const textAreaTop = isInsta ? 150 : 130;  // keep scroll below title
+            // Text Area Logic
             ctx.fillStyle = "#1a0033"; ctx.fillRect(textStartX, isInsta ? 150 : 0, textFrameW, canvas.height);
             ctx.fillStyle = "#ffd94a"; ctx.textAlign = "left";
-
-            const panelPadX = 20;
-            const panelPadTop = 50;
-            const panelPadBottom = 30;
-            const panelMaxWidth = textFrameW - (panelPadX * 2);
-            const panelHeight = canvas.height - textAreaTop;
-
-            // Wrap lines to the visible width using current ctx.font
-            function buildWrappedLines(maxWidth) {
-                const result = [];
-                scriptVal.split('\n').forEach(p => {
-                    const words = p.split(' ').filter(Boolean);
-                    let line = "";
-                    words.forEach(word => {
-                        const testLine = line ? line + " " + word : word;
-                        if (ctx.measureText(testLine).width > maxWidth && line) {
-                            result.push(line);
-                            line = word;
-                        } else {
-                            line = testLine;
-                        }
-                    });
-                    if (line) result.push(line);
-                });
-                return result;
-            }
-
-            // Compute a static font size that *actually fits* after wrapping
-            const fSMax = isInsta ? 44 : 40;
-            const fSMin = isInsta ? 16 : 18;
-            const staticLineHeightMult = 1.38;
-            let staticFS = fSMax;
-            let staticLines = [];
-            while (staticFS > fSMin) {
-                ctx.font = `bold ${staticFS}px Segoe UI`;
-                staticLines = buildWrappedLines(panelMaxWidth);
-                const lineH = staticFS * staticLineHeightMult;
-                const neededH = (staticLines.length * lineH);
-                const availH = panelHeight - panelPadTop - panelPadBottom;
-                if (neededH <= availH) break;
-                staticFS -= 1;
-            }
-            ctx.font = `bold ${staticFS}px Segoe UI`;
-            staticLines = buildWrappedLines(panelMaxWidth);
-            const staticLineH = staticFS * staticLineHeightMult;
-
-            // Clip drawing to the text panel so nothing can overflow visually
-            function withTextPanelClip(drawFn) {
-                ctx.save();
-                ctx.beginPath();
-                ctx.rect(textStartX, textAreaTop, textFrameW, canvas.height - textAreaTop);
-                ctx.clip();
-                drawFn();
-                ctx.restore();
-            }
+            
+            let lns = []; scriptVal.split('\n').forEach(p => { 
+                let maxChars = isInsta ? 25 : 45;
+                let wrds = p.split(' '), cur = ''; 
+                wrds.forEach(w => { 
+                    if((cur+w).length > maxChars){ 
+                        lns.push(cur); 
+                        cur=w+' '; 
+                    } else {
+                        cur+=w+' '; 
+                    }
+                }); 
+                lns.push(cur); 
+            });
 
             if (elap < holdTime) {
                 // 2s Hold Static Text
-                withTextPanelClip(() => {
-                    staticLines.forEach((l, i) => ctx.fillText(l, textStartX + panelPadX, textAreaTop + panelPadTop + (i * staticLineH)));
-                });
+                let fS = isInsta ? Math.min(22, Math.floor(900 / (lns.length * 1.5))) : 30;
+                ctx.font = `bold ${fS}px Segoe UI`;
+                lns.forEach((l, i) => ctx.fillText(l, textStartX + 20, 200 + (i * (fS * 1.4))));
             } else if (curModeElap < totalTransTime) {
-                // Scroll with Fade In - keep readable line spacing
+                // Scroll with Fade In
                 let fadeAlpha = Math.min((elap - holdTime) / 1000, 1);
                 ctx.globalAlpha = fadeAlpha;
-
-                const scrollFS = isInsta ? 22 : 24;
-                const scrollLineH = Math.round(scrollFS * 1.85);
-                ctx.font = `${isInsta ? "bold " : ""}${scrollFS}px Segoe UI`;
-                const lines = buildWrappedLines(panelMaxWidth);
-
-                const th = lines.length * scrollLineH;
-                const scrollHeight = canvas.height - textAreaTop;
-                const cy = canvas.height - (tProg * (scrollHeight + th - (scrollLineH * 2)));
-
-                withTextPanelClip(() => {
-                    lines.forEach((l, i) => ctx.fillText(l, textStartX + panelPadX, cy + (i * scrollLineH)));
-                });
+                ctx.font = isInsta ? "bold 22px Segoe UI" : "24px Segoe UI"; 
+                let th = lns.length * 40, sy = canvas.height, cy = sy - (tProg * (sy + th - 150)); 
+                lns.forEach((l, i) => ctx.fillText(l, textStartX + 20, cy + (i * 40))); 
                 ctx.globalAlpha = 1;
             } else { 
                 // Final Rest Static Text
-                withTextPanelClip(() => {
-                    staticLines.forEach((l, i) => ctx.fillText(l, textStartX + panelPadX, textAreaTop + panelPadTop + (i * staticLineH)));
-                });
+                let fS = isInsta ? Math.min(22, Math.floor(900 / (lns.length * 1.5))) : 30;
+                ctx.font = `bold ${fS}px Segoe UI`; 
+                lns.forEach((l, i) => ctx.fillText(l, textStartX + 20, 200 + (i * (fS * 1.4)))); 
             }
 
             if(gProg < 1) { requestAnimationFrame(render); document.getElementById('status').innerText = `PRODUCING: ${Math.round(gProg * 100)}%`; } 
