@@ -356,7 +356,8 @@
                 ctx.restore();
             }
 
-            // Text Area Logic
+            // Text Area Logic - reserve top for title/subtitle, clip scroll text below
+            const textAreaTop = isInsta ? 150 : 130;  // keep scroll below title
             ctx.fillStyle = "#1a0033"; ctx.fillRect(textStartX, isInsta ? 150 : 0, textFrameW, canvas.height);
             ctx.fillStyle = "#ffd94a"; ctx.textAlign = "left";
             
@@ -369,20 +370,25 @@
                 // 2s Hold Static Text
                 let fS = isInsta ? Math.min(22, Math.floor(900 / (lns.length * 1.5))) : 30;
                 ctx.font = `bold ${fS}px Segoe UI`;
-                lns.forEach((l, i) => ctx.fillText(l, textStartX + 20, 200 + (i * (fS * 1.4))));
+                lns.forEach((l, i) => ctx.fillText(l, textStartX + 20, textAreaTop + 50 + (i * (fS * 1.4))));
             } else if (curModeElap < totalTransTime) {
-                // Scroll with Fade In
+                // Scroll with Fade In - clip so scroll never overlaps title/subtitle
                 let fadeAlpha = Math.min((elap - holdTime) / 1000, 1);
                 ctx.globalAlpha = fadeAlpha;
                 ctx.font = isInsta ? "bold 22px Segoe UI" : "24px Segoe UI"; 
-                let th = lns.length * 40, sy = canvas.height, cy = sy - (tProg * (sy + th - 150)); 
+                let th = lns.length * 40, scrollHeight = canvas.height - textAreaTop, cy = canvas.height - (tProg * (scrollHeight + th - 80)); 
+                ctx.save();
+                ctx.beginPath();
+                ctx.rect(textStartX, textAreaTop, textFrameW, canvas.height - textAreaTop);
+                ctx.clip();
                 lns.forEach((l, i) => ctx.fillText(l, textStartX + 20, cy + (i * 40))); 
+                ctx.restore();
                 ctx.globalAlpha = 1;
             } else { 
                 // Final Rest Static Text
                 let fS = isInsta ? Math.min(22, Math.floor(900 / (lns.length * 1.5))) : 30;
                 ctx.font = `bold ${fS}px Segoe UI`; 
-                lns.forEach((l, i) => ctx.fillText(l, textStartX + 20, 200 + (i * (fS * 1.4)))); 
+                lns.forEach((l, i) => ctx.fillText(l, textStartX + 20, textAreaTop + 50 + (i * (fS * 1.4)))); 
             }
 
             if(gProg < 1) { requestAnimationFrame(render); document.getElementById('status').innerText = `PRODUCING: ${Math.round(gProg * 100)}%`; } 
