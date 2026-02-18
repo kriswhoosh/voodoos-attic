@@ -356,7 +356,8 @@
                 ctx.restore();
             }
 
-            // Text Area Logic
+            // Text Area Logic (clipped so it never crosses title/subtitle)
+            const textAreaTop = isInsta ? 150 : 130;  // keep text below titles
             ctx.fillStyle = "#1a0033"; ctx.fillRect(textStartX, isInsta ? 150 : 0, textFrameW, canvas.height);
             ctx.fillStyle = "#ffd94a"; ctx.textAlign = "left";
             
@@ -374,11 +375,17 @@
                 lns.push(cur); 
             });
 
+            // Clip all script text to the right-hand text panel area
+            ctx.save();
+            ctx.beginPath();
+            ctx.rect(textStartX, textAreaTop, textFrameW, canvas.height - textAreaTop);
+            ctx.clip();
+
             if (elap < holdTime) {
                 // 2s Hold Static Text
                 let fS = isInsta ? Math.min(22, Math.floor(900 / (lns.length * 1.5))) : 30;
                 ctx.font = `bold ${fS}px Segoe UI`;
-                lns.forEach((l, i) => ctx.fillText(l, textStartX + 20, 200 + (i * (fS * 1.4))));
+                lns.forEach((l, i) => ctx.fillText(l, textStartX + 20, textAreaTop + 50 + (i * (fS * 1.4))));
             } else if (curModeElap < totalTransTime) {
                 // Scroll with Fade In
                 let fadeAlpha = Math.min((elap - holdTime) / 1000, 1);
@@ -391,8 +398,10 @@
                 // Final Rest Static Text
                 let fS = isInsta ? Math.min(22, Math.floor(900 / (lns.length * 1.5))) : 30;
                 ctx.font = `bold ${fS}px Segoe UI`; 
-                lns.forEach((l, i) => ctx.fillText(l, textStartX + 20, 200 + (i * (fS * 1.4)))); 
+                lns.forEach((l, i) => ctx.fillText(l, textStartX + 20, textAreaTop + 50 + (i * (fS * 1.4)))); 
             }
+
+            ctx.restore();
 
             if(gProg < 1) { requestAnimationFrame(render); document.getElementById('status').innerText = `PRODUCING: ${Math.round(gProg * 100)}%`; } 
             else { rec.stop(); }
