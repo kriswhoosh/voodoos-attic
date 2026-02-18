@@ -1,7 +1,15 @@
 # Ignore large video files
+# Video formats
 *.mp4
 *.mov
 *.avi
+*.mkv
+*.webm
+*.flv
+
+# Other heavy assets
+*.mp3
+*.wav
 
 # Ignore system junk
 .DS_Store

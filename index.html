@@ -36,11 +36,11 @@
         .rec-btn { background: var(--accent); color: #fff; width: 100%; padding: 20px; border: none; border-radius: 8px; font-weight: 800; cursor: pointer; font-size: 16px; margin-bottom: 8px; }
         .insta-btn { background: var(--insta); color: #fff; width: 100%; padding: 20px; border: none; border-radius: 8px; font-weight: 800; cursor: pointer; font-size: 16px; text-shadow: 1px 1px 2px rgba(0,0,0,0.5); }
         canvas { display: none; }
-        .img-meta { position: absolute; left: 120px; background: rgba(0, 0, 0, 0.7); color: #fff; padding: 8px 12px; border-radius: 8px; max-width: 420px; font-size: 12px; border: 1px solid var(--brand); }
+        .img-meta { position: absolute; left: 120px; background: rgba(0, 0, 0, 0.7); color: #fff; padding: 10px 16px; border-radius: 10px; max-width: 460px; font-size: 18px; border: 1px solid var(--brand); }
         .img-meta.img-meta-bottom { bottom: 40px; }
         .img-meta.img-meta-top { top: 190px; }
-        .img-meta-price { font-weight: 800; color: var(--brand); margin-bottom: 4px; }
-        .img-meta-desc { color: var(--muted); font-size: 11px; }
+        .img-meta-price { font-weight: 800; color: var(--brand); margin-bottom: 6px; font-size: 22px; }
+        .img-meta-desc { color: var(--muted); font-size: 16px; }
     </style>
 </head>
 <body>
@@ -313,44 +313,44 @@
                 const isTop = overlayPos === 'top';
                 const boxY = isTop
                     ? (isInsta ? 180 : 160)
-                    : (isInsta ? canvas.height - 130 : canvas.height - 110);
-                const boxW = isInsta ? 420 : 420;
-                const boxH = 80;
+                    : (isInsta ? canvas.height - 160 : canvas.height - 140);
+                const boxW = isInsta ? 500 : 500;
+                const boxH = 120;
 
                 ctx.save();
-                ctx.fillStyle = "rgba(0, 0, 0, 0.7)";
+                ctx.fillStyle = "rgba(0, 0, 0, 0.78)";
                 ctx.strokeStyle = "#ffd94a";
                 ctx.lineWidth = 2;
                 ctx.beginPath();
-                ctx.roundRect(boxX, boxY, boxW, boxH, 10);
+                ctx.roundRect(boxX, boxY, boxW, boxH, 14);
                 ctx.fill();
                 ctx.stroke();
 
                 ctx.fillStyle = "#ffd94a";
-                ctx.font = "bold 22px Segoe UI";
+                ctx.font = "bold 36px Segoe UI";
                 ctx.textAlign = "left";
                 if (activeMeta.price) {
-                    ctx.fillText(activeMeta.price, boxX + 14, boxY + 30);
+                    ctx.fillText(activeMeta.price, boxX + 18, boxY + 40);
                 }
 
                 if (activeMeta.desc) {
                     ctx.fillStyle = "#c59fd6";
-                    ctx.font = "14px Segoe UI";
+                    ctx.font = "20px Segoe UI";
                     const desc = activeMeta.desc;
                     const maxChars = 40;
                     let line = "";
-                    let y = boxY + 52;
+                    let y = boxY + 70;
                     desc.split(" ").forEach(word => {
                         if ((line + word).length > maxChars) {
-                            ctx.fillText(line, boxX + 14, y);
+                            ctx.fillText(line, boxX + 18, y);
                             line = word + " ";
-                            y += 18;
+                            y += 26;
                         } else {
                             line += word + " ";
                         }
                     });
                     if (line.trim()) {
-                        ctx.fillText(line, boxX + 14, y);
+                        ctx.fillText(line, boxX + 18, y);
                     }
                 }
                 ctx.restore();
@@ -366,11 +366,17 @@
                 let wrds = p.split(' '), cur = ''; wrds.forEach(w => { if((cur+w).length > maxChars){ lns.push(cur); cur=w+' '; } else cur+=w+' '; }); lns.push(cur); 
             });
 
+            // Compute a dynamic font size for static (hold/rest) text so it fills the panel
+            const availableH = canvas.height - (textAreaTop + 80);
+            let baseFS = Math.floor(availableH / Math.max(1, (lns.length * 1.6)));
+            let fSMax = isInsta ? 44 : 40;
+            let fSMin = isInsta ? 16 : 18;
+            let staticFS = Math.max(fSMin, Math.min(baseFS, fSMax));
+
             if (elap < holdTime) {
                 // 2s Hold Static Text
-                let fS = isInsta ? Math.min(22, Math.floor(900 / (lns.length * 1.5))) : 30;
-                ctx.font = `bold ${fS}px Segoe UI`;
-                lns.forEach((l, i) => ctx.fillText(l, textStartX + 20, textAreaTop + 50 + (i * (fS * 1.4))));
+                ctx.font = `bold ${staticFS}px Segoe UI`;
+                lns.forEach((l, i) => ctx.fillText(l, textStartX + 20, textAreaTop + 50 + (i * (staticFS * 1.4))));
             } else if (curModeElap < totalTransTime) {
                 // Scroll with Fade In - clip so scroll never overlaps title/subtitle
                 let fadeAlpha = Math.min((elap - holdTime) / 1000, 1);
@@ -386,9 +392,8 @@
                 ctx.globalAlpha = 1;
             } else { 
                 // Final Rest Static Text
-                let fS = isInsta ? Math.min(22, Math.floor(900 / (lns.length * 1.5))) : 30;
-                ctx.font = `bold ${fS}px Segoe UI`; 
-                lns.forEach((l, i) => ctx.fillText(l, textStartX + 20, textAreaTop + 50 + (i * (fS * 1.4)))); 
+                ctx.font = `bold ${staticFS}px Segoe UI`; 
+                lns.forEach((l, i) => ctx.fillText(l, textStartX + 20, textAreaTop + 50 + (i * (staticFS * 1.4)))); 
             }
 
             if(gProg < 1) { requestAnimationFrame(render); document.getElementById('status').innerText = `PRODUCING: ${Math.round(gProg * 100)}%`; } 
