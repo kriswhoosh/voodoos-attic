@@ -360,40 +360,73 @@
             const textAreaTop = isInsta ? 150 : 130;  // keep scroll below title
             ctx.fillStyle = "#1a0033"; ctx.fillRect(textStartX, isInsta ? 150 : 0, textFrameW, canvas.height);
             ctx.fillStyle = "#ffd94a"; ctx.textAlign = "left";
-            
-            let lns = []; scriptVal.split('\n').forEach(p => { 
+
+            // Base line list used only to estimate total lines for vertical sizing
+            let roughLines = []; scriptVal.split('\n').forEach(p => { 
                 let maxChars = isInsta ? 25 : 45;
-                let wrds = p.split(' '), cur = ''; wrds.forEach(w => { if((cur+w).length > maxChars){ lns.push(cur); cur=w+' '; } else cur+=w+' '; }); lns.push(cur); 
+                let wrds = p.split(' '), cur = ''; 
+                wrds.forEach(w => { 
+                    if((cur + w).length > maxChars){ 
+                        roughLines.push(cur); 
+                        cur = w + ' '; 
+                    } else {
+                        cur += w + ' ';
+                    } 
+                }); 
+                if (cur.trim()) roughLines.push(cur); 
             });
 
             // Compute a dynamic font size for static (hold/rest) text so it fills the panel
             const availableH = canvas.height - (textAreaTop + 80);
-            let baseFS = Math.floor(availableH / Math.max(1, (lns.length * 1.6)));
+            let baseFS = Math.floor(availableH / Math.max(1, (roughLines.length * 1.6)));
             let fSMax = isInsta ? 44 : 40;
             let fSMin = isInsta ? 16 : 18;
             let staticFS = Math.max(fSMin, Math.min(baseFS, fSMax));
 
+            // Helper: wrap lines to the visible width using current ctx.font
+            function buildWrappedLines(maxWidth) {
+                const result = [];
+                scriptVal.split('\n').forEach(p => {
+                    const words = p.split(' ').filter(Boolean);
+                    let line = "";
+                    words.forEach(word => {
+                        const testLine = line ? line + " " + word : word;
+                        if (ctx.measureText(testLine).width > maxWidth && line) {
+                            result.push(line);
+                            line = word;
+                        } else {
+                            line = testLine;
+                        }
+                    });
+                    if (line) result.push(line);
+                });
+                return result;
+            }
+
             if (elap < holdTime) {
                 // 2s Hold Static Text
                 ctx.font = `bold ${staticFS}px Segoe UI`;
-                lns.forEach((l, i) => ctx.fillText(l, textStartX + 20, textAreaTop + 50 + (i * (staticFS * 1.4))));
+                const lines = buildWrappedLines(textFrameW - 40);
+                lines.forEach((l, i) => ctx.fillText(l, textStartX + 20, textAreaTop + 50 + (i * (staticFS * 1.4))));
             } else if (curModeElap < totalTransTime) {
                 // Scroll with Fade In - clip so scroll never overlaps title/subtitle
                 let fadeAlpha = Math.min((elap - holdTime) / 1000, 1);
                 ctx.globalAlpha = fadeAlpha;
                 ctx.font = isInsta ? "bold 22px Segoe UI" : "24px Segoe UI"; 
-                let th = lns.length * 40, scrollHeight = canvas.height - textAreaTop, cy = canvas.height - (tProg * (scrollHeight + th - 80)); 
+                const lines = buildWrappedLines(textFrameW - 40);
+                let th = lines.length * 40, scrollHeight = canvas.height - textAreaTop, cy = canvas.height - (tProg * (scrollHeight + th - 80)); 
                 ctx.save();
                 ctx.beginPath();
                 ctx.rect(textStartX, textAreaTop, textFrameW, canvas.height - textAreaTop);
                 ctx.clip();
-                lns.forEach((l, i) => ctx.fillText(l, textStartX + 20, cy + (i * 40))); 
+                lines.forEach((l, i) => ctx.fillText(l, textStartX + 20, cy + (i * 40))); 
                 ctx.restore();
                 ctx.globalAlpha = 1;
             } else { 
                 // Final Rest Static Text
                 ctx.font = `bold ${staticFS}px Segoe UI`; 
-                lns.forEach((l, i) => ctx.fillText(l, textStartX + 20, textAreaTop + 50 + (i * (staticFS * 1.4)))); 
+                const lines = buildWrappedLines(textFrameW - 40);
+                lines.forEach((l, i) => ctx.fillText(l, textStartX + 20, textAreaTop + 50 + (i * (staticFS * 1.4)))); 
             }
 
             if(gProg < 1) { requestAnimationFrame(render); document.getElementById('status').innerText = `PRODUCING: ${Math.round(gProg * 100)}%`; } 
