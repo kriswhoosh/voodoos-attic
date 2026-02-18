@@ -40,7 +40,7 @@
         .img-meta.img-meta-bottom { bottom: 40px; }
         .img-meta.img-meta-top { top: 190px; }
         .img-meta-price { font-weight: 800; color: var(--brand); margin-bottom: 6px; font-size: 22px; }
-        .img-meta-desc { color: var(--muted); font-size: 16px; }
+        .img-meta-desc { color: var(--brand); font-size: 20px; }
     </style>
 </head>
 <body>
@@ -334,8 +334,8 @@
                 }
 
                 if (activeMeta.desc) {
-                    ctx.fillStyle = "#c59fd6";
-                    ctx.font = "20px Segoe UI";
+                    ctx.fillStyle = "#ffd94a";
+                    ctx.font = "24px Segoe UI";
                     const desc = activeMeta.desc;
                     const maxChars = 40;
                     let line = "";
