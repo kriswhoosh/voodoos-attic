@@ -52,7 +52,7 @@
         canvas { display: none; }
         .img-meta { background: rgba(0, 0, 0, 0.7); color: #fff; padding: 10px 16px; border-radius: 10px; max-width: 100%; font-size: 18px; border: 1px solid var(--brand); }
         .img-meta-price { font-weight: 800; color: var(--brand); margin-bottom: 6px; font-size: 22px; }
-        .img-meta-desc { color: var(--brand); font-size: 20px; }
+        .img-meta-desc { color: var(--brand); font-size: 20px; white-space: pre-line; }
     </style>
 </head>
 <body>
@@ -158,7 +158,7 @@
             </div>
             <input type="file" onchange="loadImg(event, ${i})" style="width:100%; font-size:10px; margin-top:5px;">
             <input type="text" placeholder="Price Tag (e.g. $40)" style="margin-top:6px; font-size:11px;" oninput="setPrice(${i}, this.value)">
-            <input type="text" placeholder="Short description" style="margin-top:4px; font-size:11px;" oninput="setDesc(${i}, this.value)">
+            <textarea placeholder="Short description" rows="3" style="margin-top:4px; font-size:11px; width:100%; resize:vertical; box-sizing:border-box;" oninput="setDesc(${i}, this.value)"></textarea>
         `;
         inputContainer.appendChild(div);
         const thumb = document.createElement('div'); thumb.className = 'thumb-box'; thumb.id = `thumb-${i}`;
@@ -374,14 +374,47 @@
             }
             ctx.restore();
 
-            // Draw price tag + description in video (always RIGHT of image area, TOP or BOTTOM)
+            // Draw price tag + description in video (always RIGHT of image area, TOP or BOTTOM) — autofit, centered, 50% transparent
             if (activeMeta && (activeMeta.price || activeMeta.desc)) {
-                const boxW = 520, boxH = 120, pad = 40;
-                const boxX = 1080 - boxW - pad; // always right
+                const pad = 40, innerPad = 3;
+                const priceFont = "bold 36px Segoe UI", descFont = "24px Segoe UI";
+                const priceLineH = 40, descLineH = 26;
+                const maxDescLinePx = 420;
+
+                const lines = [];
+                if (activeMeta.price) {
+                    lines.push({ text: activeMeta.price.trim(), font: priceFont, lineH: priceLineH });
+                }
+                if (activeMeta.desc) {
+                    ctx.font = descFont;
+                    activeMeta.desc.split("\n").forEach(paragraph => {
+                        let line = "";
+                        paragraph.split(" ").forEach(word => {
+                            const test = line ? line + " " + word : word;
+                            if (ctx.measureText(test).width > maxDescLinePx && line) {
+                                lines.push({ text: line.trim(), font: descFont, lineH: descLineH });
+                                line = word;
+                            } else {
+                                line = line ? line + " " + word : word;
+                            }
+                        });
+                        if (line.trim()) lines.push({ text: line.trim(), font: descFont, lineH: descLineH });
+                    });
+                }
+
+                let boxW = 0;
+                lines.forEach(l => {
+                    ctx.font = l.font;
+                    const w = ctx.measureText(l.text).width;
+                    if (w > boxW) boxW = w;
+                });
+                boxW = Math.ceil(boxW) + innerPad * 2;
+                const boxH = lines.reduce((sum, l) => sum + l.lineH, 0) + innerPad * 2;
+                const boxX = 1080 - boxW - pad;
                 const boxY = (overlayVertical === 'top') ? (imgBaseY + 40) : (imgBaseY + instaImgH - boxH - 40);
 
                 ctx.save();
-                ctx.fillStyle = "rgba(0, 0, 0, 0.78)";
+                ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
                 ctx.strokeStyle = pal.brand;
                 ctx.lineWidth = 2;
                 ctx.beginPath();
@@ -390,32 +423,13 @@
                 ctx.stroke();
 
                 ctx.fillStyle = pal.brand;
-                ctx.font = "bold 36px Segoe UI";
-                ctx.textAlign = "left";
-                if (activeMeta.price) {
-                    ctx.fillText(activeMeta.price, boxX + 18, boxY + 40);
-                }
-
-                if (activeMeta.desc) {
-                    ctx.fillStyle = pal.brand;
-                    ctx.font = "24px Segoe UI";
-                    const desc = activeMeta.desc;
-                    const maxChars = 40;
-                    let line = "";
-                    let y = boxY + 70;
-                    desc.split(" ").forEach(word => {
-                        if ((line + word).length > maxChars) {
-                            ctx.fillText(line, boxX + 18, y);
-                            line = word + " ";
-                            y += 26;
-                        } else {
-                            line += word + " ";
-                        }
-                    });
-                    if (line.trim()) {
-                        ctx.fillText(line, boxX + 18, y);
-                    }
-                }
+                ctx.textAlign = "center";
+                let y = boxY + innerPad;
+                lines.forEach(l => {
+                    ctx.font = l.font;
+                    ctx.fillText(l.text, boxX + boxW / 2, y + l.lineH * 0.78);
+                    y += l.lineH;
+                });
                 ctx.restore();
             }
 
