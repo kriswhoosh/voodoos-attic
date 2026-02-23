@@ -50,9 +50,9 @@
         .rec-btn { background: var(--accent); color: #fff; width: 100%; padding: 20px; border: none; border-radius: 8px; font-weight: 800; cursor: pointer; font-size: 16px; margin-bottom: 8px; }
         .insta-btn { background: var(--insta); color: #fff; width: 100%; padding: 20px; border: none; border-radius: 8px; font-weight: 800; cursor: pointer; font-size: 16px; text-shadow: 1px 1px 2px rgba(0,0,0,0.5); }
         canvas { display: none; }
-        .img-meta { background: rgba(0, 0, 0, 0.7); color: #fff; padding: 10px 16px; border-radius: 10px; max-width: 100%; font-size: 18px; border: 1px solid var(--brand); }
+        .img-meta { background: rgba(0, 0, 0, 0.7); color: #fff; padding: 5px; border-radius: 10px; max-width: 100%; font-size: 18px; border: 1px solid var(--brand); box-sizing: border-box; overflow: hidden; word-wrap: break-word; overflow-wrap: break-word; }
         .img-meta-price { font-weight: 800; color: var(--brand); margin-bottom: 6px; font-size: 22px; }
-        .img-meta-desc { color: var(--brand); font-size: 20px; white-space: pre-line; }
+        .img-meta-desc { color: var(--brand); font-size: 20px; white-space: pre-line; word-wrap: break-word; overflow-wrap: break-word; }
     </style>
 </head>
 <body>
@@ -85,7 +85,7 @@
         <label class="audio-btn">UPLOAD TRACK (MP4/MP3) <input type="file" id="audioInput" accept="audio/*,video/mp4" style="display:none" onchange="loadAudio(event)"></label>
         <div id="audioStatus" style="font-size:11px; color:var(--muted); margin-bottom:15px; text-align:center;">No track loaded.</div>
 
-        <button onclick="record()" class="insta-btn">­START INSTA-READY PRODUCTION</button>
+        <button id="recordBtn" onclick="record()" class="insta-btn">START INSTA-READY PRODUCTION</button>
         
         <div id="status" style="margin-top:10px; color: var(--brand); font-weight: bold; text-align:center;">System Standby.</div>
         <a id="dlLink" href="#" style="display:none">Download</a>
@@ -158,7 +158,7 @@
             </div>
             <input type="file" onchange="loadImg(event, ${i})" style="width:100%; font-size:10px; margin-top:5px;">
             <input type="text" placeholder="Price Tag (e.g. $40)" style="margin-top:6px; font-size:11px;" oninput="setPrice(${i}, this.value)">
-            <textarea placeholder="Short description" rows="3" style="margin-top:4px; font-size:11px; width:100%; resize:vertical; box-sizing:border-box;" oninput="setDesc(${i}, this.value)"></textarea>
+            <textarea placeholder="Short description" rows="3" style="margin-top:4px; font-size:11px; width:100%; resize:vertical; box-sizing:border-box; padding:5px;" oninput="setDesc(${i}, this.value)"></textarea>
         `;
         inputContainer.appendChild(div);
         const thumb = document.createElement('div'); thumb.className = 'thumb-box'; thumb.id = `thumb-${i}`;
@@ -236,6 +236,9 @@
         if(activeImages.length < 2) return alert("Upload at least 2 images.");
         if(!audioBuffer) return alert("Upload audio track first.");
 
+        document.getElementById('recordBtn').disabled = true;
+        document.getElementById('status').innerText = "PREPARING...";
+
         const canvas = document.getElementById('c'), ctx = canvas.getContext('2d');
         canvas.width = 1080;
         canvas.height = 1920;
@@ -257,17 +260,16 @@
         source.buffer = audioBuffer; source.connect(dest); source.connect(audioCtx.destination);
         stream.addTrack(dest.stream.getAudioTracks()[0]); source.start(0);
 
-            const holdTime = 2000;
-            const totalTransTime = 60000;
-            const restingTime = 20000;
-        const totalDuration = holdTime + totalTransTime + restingTime;
+        // 10 seconds per slide, 1s transition — same as other apps, keeps file size down (e.g. 60s for 6 images)
+        const SLIDE_DURATION_MS = 10000;
+        const TRANS_DURATION_MS = 1000;
+        const totalDuration = activeImages.length * SLIDE_DURATION_MS;
 
-        // Prefer MP4 (9:16-friendly) with high bitrate for sharp playback and correct aspect on mobile/Insta
-        const width = canvas.width, height = canvas.height;
-        const videoBitrate = 12000000;  // 12 Mbps for 1080x1920
+        // Bitrate throttling: 6Mbps to avoid overwhelming mobile app memory; avc1.42E01E for mobile social
+        const videoBitrate = 6000000;  // 6Mbps - stable for Reels
         const audioBitrate = 256000;
         const mimeCandidates = [
-            'video/mp4; codecs="avc1.42E01E, mp4a.40.2"',
+            'video/mp4; codecs="avc1.42E01E, mp4a.40.2"',  // Best for mobile
             'video/mp4; codecs="avc1.42E01E"',
             'video/mp4',
             'video/webm; codecs="vp9, opus"',
@@ -292,13 +294,13 @@
         const chunks = [];
         rec.ondataavailable = e => chunks.push(e.data);
         rec.onstop = () => {
-            source.stop();
             const blob = new Blob(chunks, { type: chosenMime });
             const dl = document.getElementById('dlLink');
             dl.href = URL.createObjectURL(blob);
             dl.download = 'voodoos_insta_final.' + (useMp4 ? 'mp4' : 'webm');
             dl.click();
             document.getElementById('status').innerText = "DONE!";
+            document.getElementById('recordBtn').disabled = false;
         };
 
         rec.start(100);  // request data every 100ms for stability
@@ -332,28 +334,33 @@
             ctx.fillStyle = pal.pink; ctx.font = "bold 32px Segoe UI";
             ctx.fillText(subVal, 540, instaSubTop + 78);
 
-            // Image and Scroll Calculations
-            let curModeElap = elap - holdTime;
-            let tProg = Math.max(0, Math.min(curModeElap / totalTransTime, 1));
-            let gProg = Math.min(elap / totalDuration, 1);
+            // Image timing: 10s per slide, 1s transition (same as Avon-Lady / Gyroplane-Train)
+            const gProg = Math.min(elap / totalDuration, 1);
+            const segmentIndex = Math.min(Math.floor(elap / SLIDE_DURATION_MS), activeImages.length - 1);
+            const withinSegment = elap % SLIDE_DURATION_MS;
+            const inTransition = withinSegment >= (SLIDE_DURATION_MS - TRANS_DURATION_MS) && (segmentIndex + 1) < activeImages.length;
+            const transProgress = inTransition
+                ? (withinSegment - (SLIDE_DURATION_MS - TRANS_DURATION_MS)) / TRANS_DURATION_MS
+                : 0;
+            const sP = Math.max(0, Math.min(transProgress, 1));
+
+            const iA = activeImages[segmentIndex];
+            const iB = inTransition ? activeImages[segmentIndex + 1] : null;
+            const activeMeta = sP >= 0.5 && iB ? iB : iA;
 
             // Image Logic + active metadata
-            let activeMeta = null;
             ctx.save();
             ctx.beginPath();
             ctx.rect(imgBaseX, imgBaseY, imgAreaW, instaImgH);
             ctx.clip();
 
-            if (elap < holdTime) {
-                const f = activeImages[0];
-                activeMeta = f;
-                ctx.translate(imgBaseX + f.x, imgBaseY + f.y);
-                ctx.scale(f.s, f.s);
-                ctx.drawImage(f.imgObj, 0, 0, imgAreaW, instaImgH);
-            } else if (curModeElap < totalTransTime) {
-                let sW = 1 / (activeImages.length - 1), cIdx = Math.min(Math.floor(tProg / sW), activeImages.length - 2);
-                let sP = (tProg - (cIdx * sW)) / sW; const iA = activeImages[cIdx], iB = activeImages[cIdx+1];
-                activeMeta = sP < 0.5 ? iA : iB;
+            if (!iA || !iA.imgObj) {
+                // no image
+            } else if (!inTransition || !iB || !iB.imgObj) {
+                ctx.translate(imgBaseX + iA.x, imgBaseY + iA.y);
+                ctx.scale(iA.s, iA.s);
+                ctx.drawImage(iA.imgObj, 0, 0, imgAreaW, instaImgH);
+            } else {
                 [iA, iB].forEach((img, i) => {
                     ctx.save();
                     let xBase = imgBaseX + img.x; let yBase = imgBaseY + img.y;
@@ -365,21 +372,15 @@
                     ctx.drawImage(img.imgObj, 0, 0, imgAreaW, instaImgH);
                     ctx.restore();
                 });
-            } else {
-                const f = activeImages[activeImages.length - 1];
-                activeMeta = f;
-                ctx.translate(imgBaseX + f.x, imgBaseY + f.y);
-                ctx.scale(f.s, f.s);
-                ctx.drawImage(f.imgObj, 0, 0, imgAreaW, instaImgH);
             }
             ctx.restore();
 
-            // Draw price tag + description in video (always RIGHT of image area, TOP or BOTTOM) — autofit, centered, 50% transparent
+            // Draw price tag + description in video (always RIGHT of image area, TOP or BOTTOM) — 5px padding, text fits box, centered
             if (activeMeta && (activeMeta.price || activeMeta.desc)) {
-                const pad = 40, innerPad = 3;
+                const margin = 40, innerPad = 5;
                 const priceFont = "bold 36px Segoe UI", descFont = "24px Segoe UI";
                 const priceLineH = 40, descLineH = 26;
-                const maxDescLinePx = 420;
+                const maxDescLinePx = 400;
 
                 const lines = [];
                 if (activeMeta.price) {
@@ -410,7 +411,7 @@
                 });
                 boxW = Math.ceil(boxW) + innerPad * 2;
                 const boxH = lines.reduce((sum, l) => sum + l.lineH, 0) + innerPad * 2;
-                const boxX = 1080 - boxW - pad;
+                const boxX = 1080 - boxW - margin;
                 const boxY = (overlayVertical === 'top') ? (imgBaseY + 40) : (imgBaseY + instaImgH - boxH - 40);
 
                 ctx.save();
@@ -490,7 +491,7 @@
             ctx.restore();
 
             if(gProg < 1) { requestAnimationFrame(render); document.getElementById('status').innerText = `PRODUCING: ${Math.round(gProg * 100)}%`; } 
-            else { rec.stop(); }
+            else { rec.stop(); source.stop(); }
         }
         requestAnimationFrame(render);
     }
